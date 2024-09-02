@@ -28,4 +28,8 @@ export class Business {
 
   @Column()
   phoneNumber: string;
+
+  // The `agreeToTerms` field is added here, but it is not stored in the database, just for validation
+  @Column()
+  agreeToTerms: boolean;
 }
