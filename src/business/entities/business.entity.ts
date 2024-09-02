@@ -2,8 +2,8 @@ import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity()
 export class Business {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
   @Column()
   firstName: string;
@@ -11,14 +11,14 @@ export class Business {
   @Column()
   lastName: string;
 
+  @Column()
+  businessName: string;
+
   @Column({ unique: true })
   email: string;
 
   @Column()
   password: string;
-
-  @Column()
-  businessName: string;
 
   @Column()
   businessType: string;
@@ -28,7 +28,4 @@ export class Business {
 
   @Column()
   phoneNumber: string;
-
-  @Column({ default: false })
-  agreeToTerms: boolean;
 }

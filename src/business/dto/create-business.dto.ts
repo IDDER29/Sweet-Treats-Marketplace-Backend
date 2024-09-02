@@ -9,16 +9,17 @@ export class CreateBusinessDto {
   @IsNotEmpty()
   lastName: string;
 
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(3)
+  businessName: string;
+
   @IsEmail()
   email: string;
 
   @IsString()
   @MinLength(6)
   password: string;
-
-  @IsString()
-  @IsNotEmpty()
-  businessName: string;
 
   @IsString()
   @IsNotEmpty()
