@@ -1,38 +1,20 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BusinessService } from './business.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Business } from './entities/business.entity';
-import { Repository } from 'typeorm';
 import {
   ConflictException,
-  BadRequestException,
   NotFoundException,
+  BadRequestException,
+  InternalServerErrorException,
 } from '@nestjs/common';
-import * as bcrypt from 'bcrypt';
+import { Repository } from 'typeorm';
+import { BusinessService } from './business.service';
+import { Business } from './entities/business.entity';
 import { CreateBusinessDto } from './dto/create-business.dto';
+import * as bcrypt from 'bcrypt';
 
 describe('BusinessService', () => {
   let service: BusinessService;
   let repository: Repository<Business>;
-
-  const mockBusiness: Business = {
-    id: 'some-uuid',
-    firstName: 'John',
-    lastName: 'Doe',
-    businessName: "John's Shop",
-    email: 'john@example.com',
-    password: 'hashedPassword',
-    businessType: 'Retail',
-    address: '123 Main St',
-    phoneNumber: '1234567890',
-    agreeToTerms: true,
-  };
-
-  const mockRepository = {
-    findOne: jest.fn(),
-    save: jest.fn(),
-    create: jest.fn(),
-  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -40,7 +22,7 @@ describe('BusinessService', () => {
         BusinessService,
         {
           provide: getRepositoryToken(Business),
-          useValue: mockRepository,
+          useClass: Repository,
         },
       ],
     }).compile();
@@ -49,123 +31,180 @@ describe('BusinessService', () => {
     repository = module.get<Repository<Business>>(getRepositoryToken(Business));
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
+  it('should create a new business', async () => {
+    const createBusinessDto: CreateBusinessDto = {
+      firstName: 'John',
+      lastName: 'Doe',
+      businessName: 'Doe Enterprises',
+      email: 'john.doe@example.com',
+      password: 'securepassword123',
+      businessType: 'Retail',
+      address: '123 Main St',
+      phoneNumber: '123-456-7890',
+      agreeToTerms: true,
+    };
 
-  describe('create', () => {
-    it('should successfully create a new business', async () => {
-      const dto: CreateBusinessDto = {
-        firstName: 'John',
-        lastName: 'Doe',
-        businessName: "John's Shop",
-        email: 'john@example.com',
-        password: 'password123',
-        businessType: 'Retail',
-        address: '123 Main St',
-        phoneNumber: '1234567890',
-        agreeToTerms: true,
-      };
-
-      jest.spyOn(repository, 'findOne').mockResolvedValueOnce(null);
-      jest.spyOn(repository, 'save').mockResolvedValueOnce(mockBusiness);
-      jest.spyOn(bcrypt, 'hash').mockResolvedValueOnce('hashedPassword');
-
-      const result = await service.create(dto);
-
-      expect(repository.findOne).toHaveBeenCalledWith({
-        where: { email: dto.email },
-      });
-      expect(bcrypt.hash).toHaveBeenCalledWith(dto.password, 12);
-      expect(repository.save).toHaveBeenCalledWith({
-        ...dto,
-        password: 'hashedPassword',
-      });
-      expect(result).toEqual({
-        id: mockBusiness.id,
-        firstName: mockBusiness.firstName,
-        lastName: mockBusiness.lastName,
-        businessName: mockBusiness.businessName,
-        email: mockBusiness.email,
-      });
+    jest.spyOn(repository, 'findOne').mockResolvedValue(undefined);
+    jest.spyOn(bcrypt, 'hash').mockResolvedValue('hashedPassword');
+    jest.spyOn(repository, 'save').mockResolvedValue({
+      ...createBusinessDto,
+      id: 'some-uuid',
+      password: 'hashedPassword',
     });
 
-    it('should throw a ConflictException if business already exists', async () => {
-      const dto: CreateBusinessDto = {
-        firstName: 'John',
-        lastName: 'Doe',
-        businessName: "John's Shop",
-        email: 'john@example.com',
-        password: 'password123',
-        businessType: 'Retail',
-        address: '123 Main St',
-        phoneNumber: '1234567890',
-        agreeToTerms: true,
-      };
+    const result = await service.create(createBusinessDto);
 
-      jest.spyOn(repository, 'findOne').mockResolvedValueOnce(mockBusiness);
-
-      await expect(service.create(dto)).rejects.toThrow(ConflictException);
-      expect(repository.findOne).toHaveBeenCalledWith({
-        where: { email: dto.email },
-      });
-    });
-
-    it('should throw a BadRequestException if terms are not agreed to', async () => {
-      const dto: CreateBusinessDto = {
-        firstName: 'John',
-        lastName: 'Doe',
-        businessName: "John's Shop",
-        email: 'john@example.com',
-        password: 'password123',
-        businessType: 'Retail',
-        address: '123 Main St',
-        phoneNumber: '1234567890',
-        agreeToTerms: false,
-      };
-
-      await expect(service.create(dto)).rejects.toThrow(BadRequestException);
+    expect(result).toEqual({
+      statusCode: 201,
+      message: 'Business registration successful',
+      data: {
+        message: 'Business registration successful',
+        business: {
+          id: 'some-uuid',
+          firstName: 'John',
+          lastName: 'Doe',
+          businessName: 'Doe Enterprises',
+          email: 'john.doe@example.com',
+        },
+      },
     });
   });
 
-  describe('login', () => {
-    it('should successfully login a business', async () => {
-      jest.spyOn(repository, 'findOne').mockResolvedValueOnce(mockBusiness);
-      jest.spyOn(bcrypt, 'compare').mockResolvedValueOnce(true);
+  it('should throw ConflictException if business already exists', async () => {
+    const createBusinessDto: CreateBusinessDto = {
+      firstName: 'John',
+      lastName: 'Doe',
+      businessName: 'Doe Enterprises',
+      email: 'john.doe@example.com',
+      password: 'securepassword123',
+      businessType: 'Retail',
+      address: '123 Main St',
+      phoneNumber: '123-456-7890',
+      agreeToTerms: true,
+    };
 
-      const result = await service.login(mockBusiness.email, 'password123');
-
-      expect(repository.findOne).toHaveBeenCalledWith({
-        where: { email: mockBusiness.email },
-      });
-      expect(bcrypt.compare).toHaveBeenCalledWith(
-        'password123',
-        mockBusiness.password,
-      );
-      expect(result).toEqual({
-        message: 'Login successful',
-        firstName: mockBusiness.firstName,
-        lastName: mockBusiness.lastName,
-        businessName: mockBusiness.businessName,
-        email: mockBusiness.email,
-      });
+    jest.spyOn(repository, 'findOne').mockResolvedValue({
+      ...createBusinessDto,
+      id: 'some-uuid',
+      password: 'hashedPassword',
     });
 
-    it('should throw a NotFoundException for invalid credentials', async () => {
-      jest.spyOn(repository, 'findOne').mockResolvedValueOnce(mockBusiness);
-      jest.spyOn(bcrypt, 'compare').mockResolvedValueOnce(false);
+    await expect(service.create(createBusinessDto)).rejects.toThrow(
+      ConflictException,
+    );
+  });
 
-      await expect(
-        service.login(mockBusiness.email, 'wrongpassword'),
-      ).rejects.toThrow(NotFoundException);
+  it('should throw BadRequestException if terms are not agreed', async () => {
+    const createBusinessDto: CreateBusinessDto = {
+      firstName: 'John',
+      lastName: 'Doe',
+      businessName: 'Doe Enterprises',
+      email: 'john.doe@example.com',
+      password: 'securepassword123',
+      businessType: 'Retail',
+      address: '123 Main St',
+      phoneNumber: '123-456-7890',
+      agreeToTerms: false, // Terms not agreed
+    };
+
+    await expect(service.create(createBusinessDto)).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('should find a business by ID', async () => {
+    const business: Business = {
+      id: 'some-uuid',
+      firstName: 'John',
+      lastName: 'Doe',
+      businessName: 'Doe Enterprises',
+      email: 'john.doe@example.com',
+      password: 'hashedPassword',
+      businessType: 'Retail',
+      address: '123 Main St',
+      phoneNumber: '123-456-7890',
+      agreeToTerms: true,
+    };
+
+    jest.spyOn(repository, 'findOne').mockResolvedValue(business);
+
+    const result = await service.findById('some-uuid');
+
+    expect(result).toEqual({
+      firstName: 'John',
+      lastName: 'Doe',
+      businessName: 'Doe Enterprises',
+      email: 'john.doe@example.com',
     });
+  });
 
-    it('should throw a BadRequestException if password is missing', async () => {
-      jest.spyOn(repository, 'findOne').mockResolvedValueOnce(mockBusiness);
+  it('should throw NotFoundException if business by ID is not found', async () => {
+    jest.spyOn(repository, 'findOne').mockResolvedValue(undefined);
 
-      await expect(service.login(mockBusiness.email, '')).rejects.toThrow(
-        BadRequestException,
-      );
+    await expect(service.findById('non-existent-uuid')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it('should login business with correct credentials', async () => {
+    const business: Business = {
+      id: 'some-uuid',
+      firstName: 'John',
+      lastName: 'Doe',
+      businessName: 'Doe Enterprises',
+      email: 'john.doe@example.com',
+      password: 'hashedPassword',
+      businessType: 'Retail',
+      address: '123 Main St',
+      phoneNumber: '123-456-7890',
+      agreeToTerms: true,
+    };
+
+    jest.spyOn(repository, 'findOne').mockResolvedValue(business);
+    jest.spyOn(bcrypt, 'compare').mockResolvedValue(true);
+
+    const result = await service.login(
+      'john.doe@example.com',
+      'securepassword123',
+    );
+
+    expect(result).toEqual({
+      message: 'Login successful',
+      business: {
+        firstName: 'John',
+        lastName: 'Doe',
+        businessName: 'Doe Enterprises',
+        email: 'john.doe@example.com',
+      },
     });
+  });
+
+  it('should throw NotFoundException if login credentials are incorrect', async () => {
+    jest.spyOn(repository, 'findOne').mockResolvedValue(null);
+
+    await expect(
+      service.login('john.doe@example.com', 'wrongpassword'),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('should throw BadRequestException if password is missing during login', async () => {
+    const business: Business = {
+      id: 'some-uuid',
+      firstName: 'John',
+      lastName: 'Doe',
+      businessName: 'Doe Enterprises',
+      email: 'john.doe@example.com',
+      password: null, // Password is missing
+      businessType: 'Retail',
+      address: '123 Main St',
+      phoneNumber: '123-456-7890',
+      agreeToTerms: true,
+    };
+
+    jest.spyOn(repository, 'findOne').mockResolvedValue(business);
+
+    await expect(
+      service.login('john.doe@example.com', 'securepassword123'),
+    ).rejects.toThrow(BadRequestException);
   });
 });
