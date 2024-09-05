@@ -106,8 +106,8 @@ export class BusinessService {
     }
 
     // Return safe data excluding sensitive fields
-    const { firstName, lastName, businessName } = business;
-    return { firstName, lastName, businessName };
+
+    return business;
   }
 
   async login(
