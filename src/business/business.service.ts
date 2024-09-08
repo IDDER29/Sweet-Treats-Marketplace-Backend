@@ -134,7 +134,6 @@ export class BusinessService {
     }
 
     // Return safe data excluding sensitive fields along with a success message
-    console.log(business);
     return {
       message: 'Login successful asds',
       business: business,
