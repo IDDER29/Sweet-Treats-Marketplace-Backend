@@ -93,8 +93,8 @@ export class BusinessService {
     }
 
     // Return safe data excluding sensitive fields
-    const { firstName, lastName, businessName, email } = business;
-    return { firstName, lastName, businessName, email };
+
+    return business;
   }
 
   async findByEmail(email: string): Promise<Partial<Business>> {
@@ -134,10 +134,10 @@ export class BusinessService {
     }
 
     // Return safe data excluding sensitive fields along with a success message
-    const { firstName, lastName, businessName, email: userEmail } = business;
+    console.log(business);
     return {
-      message: 'Login successful',
-      business: { firstName, lastName, businessName, email: userEmail },
+      message: 'Login successful asds',
+      business: business,
     };
   }
 

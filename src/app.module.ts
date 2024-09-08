@@ -3,6 +3,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { BusinessModule } from './business/business.module';
 import { Business } from './business/entities/business.entity';
+import { ProductModule } from './product/product.module';
+import { Product } from './product/entities/product.entity';
 
 @Module({
   imports: [
@@ -18,10 +20,11 @@ import { Business } from './business/entities/business.entity';
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      entities: [Business], // Point to your entities
+      entities: [Business, Product], // Include both Business and Product entities
       synchronize: true, // Set to false in production
     }),
     BusinessModule,
+    ProductModule,
   ],
 })
 export class AppModule {}

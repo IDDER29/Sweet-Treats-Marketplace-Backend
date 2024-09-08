@@ -1,4 +1,5 @@
-import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, OneToMany } from 'typeorm';
+import { Product } from '../../product/entities/product.entity'; // Import Product entity
 
 @Entity()
 export class Business {
@@ -29,7 +30,10 @@ export class Business {
   @Column()
   phoneNumber: string;
 
-  // The `agreeToTerms` field is added here, but it is not stored in the database, just for validation
   @Column()
   agreeToTerms: boolean;
+
+  // A business can have multiple products
+  @OneToMany(() => Product, (product) => product.business)
+  products: Product[];
 }
