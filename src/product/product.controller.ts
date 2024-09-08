@@ -35,12 +35,33 @@ export class ProductController {
     @Req() req: Request,
     @Headers('authorization') authorization: string, // Access user session, token, etc.
   ): Promise<Product> {
-    console.log('businessId:', req);
-    const businessId = authorization?.replace('Bearer ', ''); // Assume `businessId` is stored in user session
-    if (!businessId) {
-      throw new HttpException('Business ID is missing', HttpStatus.BAD_REQUEST);
+    if (!authorization) {
+      throw new HttpException(
+        'Authorization header is missing',
+        HttpStatus.UNAUTHORIZED,
+      );
     }
-    return this.productService.create(createProductDto, businessId);
+
+    // Strip 'Bearer ' and parse the stringified session
+    const sessionString = authorization.replace('Bearer ', '');
+
+    try {
+      // Parse the session string into an object
+      const session = JSON.parse(sessionString);
+
+      const businessId = session?.user?.id; // Extract the `user.id` from the parsed session object
+      if (!businessId) {
+        throw new HttpException(
+          'Business ID is missing in the token',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      return this.productService.create(createProductDto, businessId);
+    } catch (error) {
+      console.error('Error parsing session:', error);
+      throw new HttpException('Invalid token format', HttpStatus.UNAUTHORIZED);
+    }
   }
 
   // Get all products (optionally filtered by business)
