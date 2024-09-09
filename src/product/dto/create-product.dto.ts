@@ -5,8 +5,19 @@ import {
   IsNumber,
   IsArray,
   IsIn,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+class ImageObjectDto {
+  @IsString()
+  url: string;
 
+  @IsString()
+  name: string;
+
+  @IsString()
+  key: string;
+}
 export class CreateProductDto {
   @IsString()
   @IsNotEmpty()
@@ -77,7 +88,8 @@ export class CreateProductDto {
   customizationOptions?: string;
 
   @IsArray()
+  @ValidateNested({ each: true }) // Validate each item in the array
+  @Type(() => ImageObjectDto) // Use class-transformer to convert plain objects to class instances
   @IsOptional()
-  @IsString({ each: true }) // Ensure each item in the array is a string (URL)
-  images?: string[];
+  images?: ImageObjectDto[];
 }

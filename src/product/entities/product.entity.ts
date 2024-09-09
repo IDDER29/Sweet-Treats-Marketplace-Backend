@@ -30,11 +30,48 @@ export class Product {
   @Column({ type: 'varchar', length: 255, nullable: true })
   allergens: string;
 
+  // New field for dietary label
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  dietaryLabel: string;
+
+  // New field for calories
+  @Column({ type: 'int', nullable: true })
+  calories: number;
+
+  // New field for macronutrients
+  @Column({ type: 'text', nullable: true })
+  macronutrients: string;
+
   @Column({ type: 'varchar', length: 100, nullable: true })
   category: string;
 
   @Column({ type: 'varchar', length: 50, default: 'Standard size' })
   size: string;
+
+  // New field for weight
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  weight: string;
+
+  // New field for shelf life
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  shelfLife: string;
+
+  // New field for storage instructions
+  @Column({ type: 'text', nullable: true })
+  storageInstructions: string;
+
+  // Updated field for seasonal availability
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  seasonalAvailability: string;
+
+  @Column({ type: 'text', nullable: true })
+  servingSuggestions: string;
+
+  @Column({ type: 'text', nullable: true })
+  variations: string;
+
+  @Column({ type: 'text', nullable: true })
+  customizationOptions: string;
 
   @Column({ type: 'varchar', length: 50, default: 'Out of Stock' })
   availability: string;
@@ -45,8 +82,12 @@ export class Product {
   @Column({ type: 'int', default: 0 })
   reviewCount: number;
 
-  @Column('text', { array: true, default: [] })
-  images: string[];
+  @Column('jsonb', { array: false, default: [] })
+  images: {
+    url: string;
+    name: string;
+    key: string;
+  }[];
 
   @Column('text', { array: true, default: [] })
   options: string[];
