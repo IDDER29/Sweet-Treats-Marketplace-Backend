@@ -8,6 +8,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+
 class ImageObjectDto {
   @IsString()
   url: string;
@@ -18,6 +19,15 @@ class ImageObjectDto {
   @IsString()
   key: string;
 }
+
+class ReviewObjectDto {
+  @IsString()
+  rating: number;
+
+  @IsString()
+  comment: string;
+}
+
 export class CreateProductDto {
   @IsString()
   @IsNotEmpty()
@@ -72,6 +82,10 @@ export class CreateProductDto {
 
   @IsString()
   @IsOptional()
+  availability?: string;
+
+  @IsString()
+  @IsOptional()
   @IsIn(['Year-round', 'Seasonal'])
   seasonalAvailability?: string; // Updated field to match the example data
 
@@ -92,4 +106,10 @@ export class CreateProductDto {
   @Type(() => ImageObjectDto) // Use class-transformer to convert plain objects to class instances
   @IsOptional()
   images?: ImageObjectDto[];
+
+  @IsArray()
+  @ValidateNested({ each: true }) // Validate each item in the array
+  @Type(() => ReviewObjectDto) // Use class-transformer to convert plain objects to class instances
+  @IsOptional()
+  reviews?: ReviewObjectDto[];
 }

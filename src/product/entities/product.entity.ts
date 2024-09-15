@@ -73,7 +73,7 @@ export class Product {
   @Column({ type: 'text', nullable: true })
   customizationOptions: string;
 
-  @Column({ type: 'varchar', length: 50, default: 'Out of Stock' })
+  @Column({ type: 'varchar', length: 50, default: 'Available' })
   availability: string;
 
   @Column({ type: 'int', default: 0 })
