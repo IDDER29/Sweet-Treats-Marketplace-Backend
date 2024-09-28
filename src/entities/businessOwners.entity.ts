@@ -1,6 +1,7 @@
+// businessOwners.entity.ts
 import {
   Entity,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
@@ -10,13 +11,13 @@ import { Businesses } from './businesses.entity';
 
 @Entity()
 export class BusinessOwners {
-  @PrimaryColumn({ type: 'varchar', length: 255 })
+  @PrimaryGeneratedColumn('uuid')
   owner_id: string;
 
   @Column({ type: 'varchar', length: 255 })
   owner_name: string;
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ type: 'varchar', length: 255, unique: true })
   email: string;
 
   @Column({ type: 'varchar', length: 255 })
@@ -31,7 +32,6 @@ export class BusinessOwners {
   @Column({ type: 'varchar', length: 255, nullable: true })
   country: string;
 
-  // One-to-Many relationship with Businesses (the business_id is handled in the Businesses entity)
   @OneToMany(() => Businesses, (business) => business.owner)
   businesses: Businesses[];
 

@@ -1,6 +1,7 @@
+// businesses.entity.ts
 import {
   Entity,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
@@ -11,10 +12,9 @@ import { BusinessOwners } from './businessOwners.entity';
 
 @Entity()
 export class Businesses {
-  @PrimaryColumn({ type: 'varchar', length: 255 })
+  @PrimaryGeneratedColumn('uuid')
   business_id: string;
 
-  // Many-to-One relationship with BusinessOwners
   @ManyToOne(() => BusinessOwners, (owner) => owner.businesses)
   @JoinColumn({ name: 'owner_id' })
   owner: BusinessOwners;
