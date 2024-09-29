@@ -1,35 +1,36 @@
+// src/entities/products.entity.ts
 import {
   Entity,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   Column,
+  ManyToOne,
   CreateDateColumn,
   UpdateDateColumn,
-  ManyToOne,
 } from 'typeorm';
 import { Businesses } from './businesses.entity';
 
 @Entity()
 export class Products {
-  @PrimaryColumn({ type: 'varchar', length: 255 })
+  @PrimaryGeneratedColumn('uuid')
   product_id: string;
-
-  @ManyToOne(() => Businesses, (business) => business.business_id)
-  business_id: Businesses;
 
   @Column({ type: 'varchar', length: 255 })
   product_name: string;
 
-  @Column({ type: 'text' })
+  @Column({ type: 'text', nullable: true })
   description: string;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({ type: 'decimal' })
   price: number;
+
+  @Column({ type: 'int' })
+  stock_quantity: number;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   image_url: string;
 
-  @Column({ type: 'int', default: 0 })
-  stock_quantity: number;
+  @ManyToOne(() => Businesses, (business) => business.products)
+  business: Businesses;
 
   @CreateDateColumn({ type: 'timestamp' })
   created_at: Date;

@@ -1,16 +1,18 @@
+// src/entities/users.entity.ts
 import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToOne,
+  JoinColumn,
 } from 'typeorm';
+import { BusinessOwners } from './businessOwners.entity';
 
 export enum UserRole {
   ADMIN = 'ADMIN',
   USER = 'USER',
-  BUSINESS_OWNER = 'BUSINESS_OWNER',
-  DELIVERY_PROVIDER = 'DELIVERY_PROVIDER',
 }
 
 @Entity()
@@ -44,4 +46,9 @@ export class Users {
 
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
   role: UserRole;
+
+  // One-to-One relationship with BusinessOwners
+  @OneToOne(() => BusinessOwners, (owner) => owner.user, { cascade: true })
+  @JoinColumn({ name: 'owner_id' }) // This will be used as a foreign key
+  businessOwner: BusinessOwners;
 }
