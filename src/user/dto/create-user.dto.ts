@@ -8,27 +8,27 @@ import {
 import { UserRole } from '../../entities/users.entity';
 
 export class CreateUserDto {
-  @IsString()
+  @IsString({ message: 'First name must be a string' })
   first_name: string;
 
-  @IsString()
+  @IsString({ message: 'Last name must be a string' })
   last_name: string;
 
-  @IsEmail()
+  @IsEmail({}, { message: 'Invalid email format' })
   email: string;
 
-  @MinLength(6)
+  @MinLength(6, { message: 'Password must be at least 6 characters long' })
   password: string;
 
-  @IsString()
+  @IsString({ message: 'Address must be a string' })
   @IsOptional()
   address?: string;
 
-  @IsString()
+  @IsString({ message: 'Phone number must be a string' })
   @IsOptional()
   phone_number?: string;
 
-  @IsEnum(UserRole)
+  @IsEnum(UserRole, { message: 'Invalid user role' })
   @IsOptional()
   role?: UserRole;
 }

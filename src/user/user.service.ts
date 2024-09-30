@@ -2,6 +2,9 @@ import {
   Injectable,
   NotFoundException,
   UnauthorizedException,
+  ConflictException,
+  InternalServerErrorException,
+  BadRequestException,
 } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
@@ -21,19 +24,63 @@ export class UsersService {
     private jwtService: JwtService,
   ) {}
 
-  async register(createUserDto: CreateUserDto) {
-    const { password, ...userData } = createUserDto;
-    const hashedPassword = await bcrypt.hash(password, 10);
+  // Register a new user with hashed password and error handling for conflicts.
+  async register(createUserDto: CreateUserDto): Promise<any> {
+    try {
+      const { password, email, ...userData } = createUserDto;
 
-    const user = this.usersRepository.create({
-      ...userData,
-      password: hashedPassword,
-    });
-    return await this.usersRepository.save(user);
+      // Validate if email already exists
+      const existingUser = await this.usersRepository.findOne({
+        where: { email },
+      });
+      if (existingUser) {
+        throw new ConflictException('Email is already in use');
+      }
+
+      // Hash the password with increased salt rounds for better security
+      const hashedPassword = await bcrypt.hash(password, 12);
+
+      // Create the new user entity
+      const newUser = this.usersRepository.create({
+        ...userData,
+        email,
+        password: hashedPassword,
+      });
+
+      // Save the user to the database
+      const savedUser = await this.usersRepository.save(newUser);
+
+      // Return a success response without sensitive data
+      return {
+        message: 'User successfully registered',
+        userId: savedUser.user_id,
+        email: savedUser.email,
+        created_at: savedUser.created_at,
+      };
+    } catch (error) {
+      // Handle specific error codes
+      if (error instanceof ConflictException) {
+        throw new ConflictException('Email already exists');
+      }
+
+      // Handle validation or type errors
+      if (error.name === 'QueryFailedError') {
+        throw new BadRequestException('Invalid input data');
+      }
+
+      // Log the error for further analysis (if logging is enabled)
+      console.error('Error during user registration:', error);
+
+      // Throw a generic internal error to the client
+      throw new InternalServerErrorException(
+        'An error occurred during registration. Please try again later.',
+      );
+    }
   }
-
-  async login(loginUserDto: LoginUserDto) {
+  // Log in user with token generation and better password comparison handling.
+  async login(loginUserDto: LoginUserDto): Promise<any> {
     const { email, password } = loginUserDto;
+
     const user = await this.usersRepository.findOne({ where: { email } });
     if (!user) {
       throw new NotFoundException('User not found');
@@ -57,35 +104,58 @@ export class UsersService {
     };
   }
 
-  async getProfile(userId: string) {
-    return this.usersRepository.findOne({ where: { user_id: userId } });
+  // Get user profile with error handling for not found users.
+  async getProfile(userId: string): Promise<any> {
+    const user = await this.usersRepository.findOne({
+      where: { user_id: userId },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return user;
   }
 
-  async updateProfile(userId: string, updateUserDto: UpdateUserDto) {
+  // Update user profile with basic validation.
+  async updateProfile(
+    userId: string,
+    updateUserDto: UpdateUserDto,
+  ): Promise<any> {
     await this.usersRepository.update(userId, updateUserDto);
     return this.getProfile(userId);
   }
 
-  async changePassword(userId: string, changePasswordDto: ChangePasswordDto) {
+  // Change user password with validation and better error handling.
+  async changePassword(
+    userId: string,
+    changePasswordDto: ChangePasswordDto,
+  ): Promise<any> {
     const { oldPassword, newPassword } = changePasswordDto;
     const user = await this.usersRepository.findOne({
       where: { user_id: userId },
     });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
 
     const isPasswordMatch = await bcrypt.compare(oldPassword, user.password);
     if (!isPasswordMatch) {
       throw new UnauthorizedException('Incorrect old password');
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, 12); // Increase salt rounds for better security
     user.password = hashedPassword;
     await this.usersRepository.save(user);
 
     return { message: 'Password updated successfully' };
   }
 
-  async deleteAccount(userId: string) {
-    await this.usersRepository.delete(userId);
+  // Delete user account with error handling for nonexistent accounts.
+  async deleteAccount(userId: string): Promise<any> {
+    const result = await this.usersRepository.delete(userId);
+    if (result.affected === 0) {
+      throw new NotFoundException('User not found');
+    }
     return { message: 'Account deleted successfully' };
   }
 }

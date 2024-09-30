@@ -5,9 +5,11 @@ import {
   Get,
   Patch,
   Delete,
-  Param,
   UseGuards,
   Request,
+  UsePipes,
+  ValidationPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import { UsersService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -21,39 +23,130 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post('auth/register')
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      exceptionFactory: (errors) => {
+        const messages = errors.map((err) => ({
+          property: err.property,
+          constraints: err.constraints,
+        }));
+        throw new BadRequestException({
+          message: 'Invalid input data',
+          errors: messages,
+        });
+      },
+    }),
+  )
   async register(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.register(createUserDto);
+    const user = await this.usersService.register(createUserDto);
+    return {
+      message: 'User registered successfully',
+      userId: user.user_id,
+      email: user.email,
+    };
   }
 
   @Post('auth/login')
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      exceptionFactory: (errors) => {
+        const messages = errors.map((err) => ({
+          property: err.property,
+          constraints: err.constraints,
+        }));
+        throw new BadRequestException({
+          message: 'Invalid input data',
+          errors: messages,
+        });
+      },
+    }),
+  )
   async login(@Body() loginUserDto: LoginUserDto) {
-    return this.usersService.login(loginUserDto);
+    const { token, ...userInfo } = await this.usersService.login(loginUserDto);
+    return {
+      message: 'Login successful',
+      token,
+      user: userInfo,
+    };
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Get('profile')
   async getProfile(@Request() req) {
-    return this.usersService.getProfile(req.user.userId);
+    const user = await this.usersService.getProfile(req.user.userId);
+    return {
+      message: 'User profile retrieved successfully',
+      user,
+    };
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Patch('profile')
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      exceptionFactory: (errors) => {
+        const messages = errors.map((err) => ({
+          property: err.property,
+          constraints: err.constraints,
+        }));
+        throw new BadRequestException({
+          message: 'Invalid input data',
+          errors: messages,
+        });
+      },
+    }),
+  )
   async updateProfile(@Request() req, @Body() updateUserDto: UpdateUserDto) {
-    return this.usersService.updateProfile(req.user.userId, updateUserDto);
+    const updatedUser = await this.usersService.updateProfile(
+      req.user.userId,
+      updateUserDto,
+    );
+    return {
+      message: 'Profile updated successfully',
+      user: updatedUser,
+    };
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Post('auth/change-password')
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      exceptionFactory: (errors) => {
+        const messages = errors.map((err) => ({
+          property: err.property,
+          constraints: err.constraints,
+        }));
+        throw new BadRequestException({
+          message: 'Invalid input data',
+          errors: messages,
+        });
+      },
+    }),
+  )
   async changePassword(
     @Request() req,
     @Body() changePasswordDto: ChangePasswordDto,
   ) {
-    return this.usersService.changePassword(req.user.userId, changePasswordDto);
+    await this.usersService.changePassword(req.user.userId, changePasswordDto);
+    return {
+      message: 'Password updated successfully',
+    };
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Delete('profile')
   async deleteAccount(@Request() req) {
-    return this.usersService.deleteAccount(req.user.userId);
+    await this.usersService.deleteAccount(req.user.userId);
+    return {
+      message: 'Account deleted successfully',
+    };
   }
 }

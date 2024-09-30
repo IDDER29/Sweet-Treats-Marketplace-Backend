@@ -14,6 +14,7 @@ import { Payments } from './entities/payments.entity';
 import { DeliveryPerson } from './entities/deliveryPerson.entity';
 import { UserModule } from './user/user.module';
 import { BusinessOwnersModule } from './business-owners/business-owners.module';
+import { BusinessModule } from './business/business.module';
 @Module({
   imports: [
     // Import ConfigModule to load environment variables
@@ -45,6 +46,7 @@ import { BusinessOwnersModule } from './business-owners/business-owners.module';
 
     UserModule,
     BusinessOwnersModule,
+    BusinessModule,
   ],
 })
 export class AppModule {}
