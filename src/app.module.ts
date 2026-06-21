@@ -31,6 +31,9 @@ import { DeliverySlot } from './delivery/entities/delivery-slot.entity';
 import { DiscountModule } from './discount/discount.module';
 import { DiscountCode } from './discount/entities/discount-code.entity';
 import { DiscountCodeUsage } from './discount/entities/discount-code-usage.entity';
+import { AdminModule } from './admin/admin.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { MailModule } from './mail/mail.module';
 @Module({
   imports: [
     // Import ConfigModule to load environment variables
@@ -79,6 +82,9 @@ import { DiscountCodeUsage } from './discount/entities/discount-code-usage.entit
     DeliveryModule,
     UploadModule,
     DiscountModule,
+    AdminModule,
+    AnalyticsModule,
+    MailModule,
   ],
 })
 export class AppModule {}

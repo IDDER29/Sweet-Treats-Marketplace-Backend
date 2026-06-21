@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn, OneToMany } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, OneToMany, CreateDateColumn } from 'typeorm';
 import { Product } from '../../product/entities/product.entity'; // Import Product entity
 
 @Entity()
@@ -38,6 +38,21 @@ export class Business {
 
   @Column({ default: false })
   isSuspended: boolean;
+
+  @Column({ type: 'text', nullable: true })
+  suspensionReason: string;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  hygieneCertificateNumber: string;
+
+  @Column({ type: 'date', nullable: true })
+  hygieneCertificateExpiry: string;
+
+  @Column({ default: false })
+  hygieneCertificateVerified: boolean;
+
+  @CreateDateColumn()
+  createdAt: Date;
 
   // A business can have multiple products
   @OneToMany(() => Product, (product) => product.business)

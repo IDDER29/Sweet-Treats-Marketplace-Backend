@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
@@ -12,6 +13,7 @@ import { Repository } from 'typeorm';
 import { Users } from '../entities/users.entity';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class UsersService {
@@ -19,6 +21,7 @@ export class UsersService {
     @InjectRepository(Users)
     private usersRepository: Repository<Users>,
     private jwtService: JwtService,
+    private mailService: MailService,
   ) {}
 
   async register(createUserDto: CreateUserDto) {
@@ -87,5 +90,47 @@ export class UsersService {
   async deleteAccount(userId: string) {
     await this.usersRepository.delete(userId);
     return { message: 'Account deleted successfully' };
+  }
+
+  async forgotPassword(email: string) {
+    const user = await this.usersRepository.findOne({ where: { email } });
+
+    // Always return the same message to avoid revealing whether the email exists
+    if (user) {
+      const token = this.jwtService.sign(
+        { userId: user.user_id, purpose: 'password-reset' },
+        { expiresIn: '1h' },
+      );
+      const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/reset-password?token=${token}`;
+      const name = user.first_name || user.email;
+      this.mailService.sendPasswordReset(email, name, resetLink);
+    }
+
+    return { message: 'If that email exists, a reset link has been sent' };
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(token);
+    } catch {
+      throw new BadRequestException('Invalid or expired token');
+    }
+
+    if (payload.purpose !== 'password-reset') {
+      throw new BadRequestException('Invalid token purpose');
+    }
+
+    const user = await this.usersRepository.findOne({
+      where: { user_id: payload.userId },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await this.usersRepository.save(user);
+
+    return { message: 'Password reset successfully' };
   }
 }

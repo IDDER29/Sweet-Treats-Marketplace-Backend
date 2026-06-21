@@ -14,6 +14,8 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { AuthGuard } from '@nestjs/passport'; // JWT Auth Guard
 
 @Controller('users')
@@ -55,5 +57,15 @@ export class UsersController {
   @Delete('profile')
   async deleteAccount(@Request() req) {
     return this.usersService.deleteAccount(req.user.userId);
+  }
+
+  @Post('forgot-password')
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.usersService.forgotPassword(dto.email);
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.usersService.resetPassword(dto.token, dto.newPassword);
   }
 }

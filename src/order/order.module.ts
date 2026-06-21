@@ -10,11 +10,13 @@ import { Business } from '../business/entities/business.entity';
 import { Product } from '../product/entities/product.entity';
 import { DeliverySlot } from '../delivery/entities/delivery-slot.entity';
 import { DiscountCode } from '../discount/entities/discount-code.entity';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Order, OrderItem, Users, Business, Product, DeliverySlot, DiscountCode]),
     PassportModule,
+    MailModule,
   ],
   providers: [OrderService],
   controllers: [OrderController],

@@ -7,6 +7,7 @@ import {
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
 } from 'typeorm';
 import { Users } from '../../entities/users.entity';
 import { Business } from '../../business/entities/business.entity';
@@ -21,6 +22,8 @@ export enum OrderStatus {
 }
 
 @Entity()
+@Index('idx_order_business_created', ['business', 'createdAt'])
+@Index('idx_order_status', ['status'])
 export class Order {
   @PrimaryGeneratedColumn('uuid')
   id: string;

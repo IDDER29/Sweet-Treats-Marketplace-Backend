@@ -6,6 +6,7 @@ import { Users } from '../entities/users.entity';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
       secret: process.env.JWT_SECRET || 'mySecretKey', // Use a strong secret in production!
       signOptions: { expiresIn: '1h' },
     }),
+    MailModule,
   ],
   controllers: [UsersController],
   providers: [UsersService, JwtStrategy],

@@ -13,6 +13,7 @@ import { Product } from '../product/entities/product.entity';
 import { DeliverySlot } from '../delivery/entities/delivery-slot.entity';
 import { DiscountCode, DiscountType } from '../discount/entities/discount-code.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { MailService } from '../mail/mail.service';
 
 const ORDER_RELATIONS = ['items', 'items.product', 'business', 'customer'];
 
@@ -30,6 +31,7 @@ export class OrderService {
     @InjectRepository(DiscountCode)
     private readonly discountCodeRepository: Repository<DiscountCode>,
     private readonly dataSource: DataSource,
+    private readonly mailService: MailService,
   ) {}
 
   // Create an order ("checkout") from a cart payload. Prices are always read
@@ -238,6 +240,12 @@ export class OrderService {
         where: { id: saved.id },
         relations: ORDER_RELATIONS,
       });
+
+      // Send email notifications (non-blocking — failures are swallowed)
+      const customerName = customer.first_name || customer.email;
+      this.mailService.sendOrderConfirmation(full, customer.email, customerName);
+      this.mailService.sendOrderAlert(full, business.email);
+
       return this.toResponse(full);
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -337,6 +345,13 @@ export class OrderService {
 
     order.status = status;
     const saved = await this.orderRepository.save(order);
+
+    // Send status update email to customer (non-blocking — failures are swallowed)
+    if (order.customer?.email) {
+      const customerName = order.customer.first_name || order.customer.email;
+      this.mailService.sendStatusUpdate(saved, order.customer.email, customerName);
+    }
+
     return this.toResponse(saved);
   }
 
