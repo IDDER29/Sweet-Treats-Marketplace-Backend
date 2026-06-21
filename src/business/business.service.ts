@@ -4,9 +4,11 @@ import {
   ConflictException,
   InternalServerErrorException,
   BadRequestException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { JwtService } from '@nestjs/jwt';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { Business } from './entities/business.entity';
 import * as bcrypt from 'bcrypt';
@@ -18,6 +20,7 @@ export class BusinessService {
   constructor(
     @InjectRepository(Business)
     private readonly businessRepository: Repository<Business>,
+    private readonly jwtService: JwtService,
   ) {}
 
   async create(
@@ -92,8 +95,7 @@ export class BusinessService {
       throw new NotFoundException(`Business with ID ${id} not found`);
     }
 
-    // Return safe data excluding sensitive fields
-
+    delete business.password;
     return business;
   }
 
@@ -105,18 +107,22 @@ export class BusinessService {
       throw new NotFoundException(`Business with email ${email} not found`);
     }
 
-    // Return safe data excluding sensitive fields
-
+    delete business.password;
     return business;
   }
 
   async login(
     email: string,
     password: string,
-  ): Promise<{ message: string; business: Partial<Business> }> {
+  ): Promise<{ message: string; token: string; business: Partial<Business> }> {
     const business = await this.businessRepository.findOne({
       where: { email },
     });
+
+    // Guard against null business before accessing properties
+    if (!business) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
 
     // Check if the password is provided and if the business entity contains a hashed password
     if (!password || !business.password) {
@@ -130,13 +136,20 @@ export class BusinessService {
     );
 
     if (!isPasswordMatching) {
-      throw new NotFoundException('Invalid credentials');
+      throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Return safe data excluding sensitive fields along with a success message
+    const token = this.jwtService.sign({
+      businessId: business.id,
+      role: 'BUSINESS',
+    });
+
+    const { id, firstName, lastName, businessName, email: businessEmail } = business;
+
     return {
-      message: 'Login successful asds',
-      business: business,
+      message: 'Login successful',
+      token,
+      business: { id, firstName, lastName, businessName, email: businessEmail },
     };
   }
 

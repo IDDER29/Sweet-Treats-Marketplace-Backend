@@ -33,6 +33,12 @@ export class Business {
   @Column()
   agreeToTerms: boolean;
 
+  @Column({ default: true })
+  isAcceptingOrders: boolean;
+
+  @Column({ default: false })
+  isSuspended: boolean;
+
   // A business can have multiple products
   @OneToMany(() => Product, (product) => product.business)
   products: Product[];

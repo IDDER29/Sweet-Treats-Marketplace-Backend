@@ -7,10 +7,9 @@ import {
   Put,
   Delete,
   Req,
-  HttpException,
-  HttpStatus,
-  Headers,
+  UseGuards,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -20,54 +19,30 @@ import { Request } from 'express';
 declare module 'express' {
   interface Request {
     user?: {
-      id: string; // Or any type that represents the user object
+      businessId: string;
     };
   }
 }
+
 @Controller('products')
 export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
   // Create a product
+  @UseGuards(AuthGuard('business-jwt'))
   @Post()
   async create(
     @Body() createProductDto: CreateProductDto,
     @Req() req: Request,
-    @Headers('authorization') authorization: string, // Access user session, token, etc.
   ): Promise<Product> {
-    if (!authorization) {
-      throw new HttpException(
-        'Authorization header is missing',
-        HttpStatus.UNAUTHORIZED,
-      );
-    }
-
-    // Strip 'Bearer ' and parse the stringified session
-    const sessionString = authorization.replace('Bearer ', '');
-
-    try {
-      // Parse the session string into an object
-      const session = JSON.parse(sessionString);
-
-      const businessId = session?.user?.id; // Extract the `user.id` from the parsed session object
-      if (!businessId) {
-        throw new HttpException(
-          'Business ID is missing in the token',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      return this.productService.create(createProductDto, businessId);
-    } catch (error) {
-      console.error('Error parsing session:', error);
-      throw new HttpException('Invalid token format', HttpStatus.UNAUTHORIZED);
-    }
+    const businessId = req.user.businessId;
+    return this.productService.create(createProductDto, businessId);
   }
 
   // Get all products (optionally filtered by business)
   @Get()
   async findAll(@Req() req: Request): Promise<Product[]> {
-    const businessId = req.user?.id; // Optional business filter
+    const businessId = req.user?.businessId;
     return this.productService.findAll(businessId);
   }
 
@@ -78,6 +53,7 @@ export class ProductController {
   }
 
   // Update a product
+  @UseGuards(AuthGuard('business-jwt'))
   @Put(':id')
   async update(
     @Param('id') id: string,
@@ -87,6 +63,7 @@ export class ProductController {
   }
 
   // Delete a product
+  @UseGuards(AuthGuard('business-jwt'))
   @Delete(':id')
   async remove(@Param('id') id: string): Promise<void> {
     return this.productService.remove(id);

@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { BusinessService } from './business.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
+import { LoginBusinessDto } from './dto/login-business.dto';
 
 @Controller('business')
 export class BusinessController {
@@ -55,12 +56,12 @@ export class BusinessController {
   }
 
   @Post('login')
-  async login(
-    @Body('email') email: string,
-    @Body('password') password: string,
-  ) {
+  async login(@Body() loginBusinessDto: LoginBusinessDto) {
     try {
-      return await this.businessService.login(email, password);
+      return await this.businessService.login(
+        loginBusinessDto.email,
+        loginBusinessDto.password,
+      );
     } catch (error) {
       if (error.message.includes('Invalid credentials')) {
         throw new UnauthorizedException('Invalid credentials');

@@ -120,7 +120,12 @@ export class OrderService {
     return this.toResponse(saved);
   }
 
-  async findForBusiness(businessId: string) {
+  async findForBusiness(businessId: string, requestingBusinessId: string) {
+    if (businessId !== requestingBusinessId) {
+      throw new ForbiddenException(
+        'You do not have access to this business orders',
+      );
+    }
     const orders = await this.orderRepository.find({
       where: { business: { id: businessId } },
       relations: ORDER_RELATIONS,
@@ -129,8 +134,17 @@ export class OrderService {
     return orders.map((order) => this.toResponse(order));
   }
 
-  async updateStatus(id: string, status: OrderStatus) {
+  async updateStatus(
+    id: string,
+    status: OrderStatus,
+    businessId: string,
+  ) {
     const order = await this.getOrderOrFail(id);
+    if (order.business?.id !== businessId) {
+      throw new ForbiddenException(
+        'You do not have access to update this order',
+      );
+    }
     order.status = status;
     const saved = await this.orderRepository.save(order);
     return this.toResponse(saved);

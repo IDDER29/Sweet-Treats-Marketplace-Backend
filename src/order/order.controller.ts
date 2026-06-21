@@ -31,6 +31,33 @@ export class OrderController {
     return this.orderService.findForCustomer(req.user.userId);
   }
 
+  // --- Seller endpoints (must come before :id to avoid Express matching 'business' as an id param) ---
+
+  @UseGuards(AuthGuard('business-jwt'))
+  @Get('business/:businessId')
+  findForBusiness(
+    @Request() req,
+    @Param('businessId') businessId: string,
+  ) {
+    return this.orderService.findForBusiness(businessId, req.user.businessId);
+  }
+
+  @UseGuards(AuthGuard('business-jwt'))
+  @Patch(':id/status')
+  updateStatus(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() updateOrderStatusDto: UpdateOrderStatusDto,
+  ) {
+    return this.orderService.updateStatus(
+      id,
+      updateOrderStatusDto.status,
+      req.user.businessId,
+    );
+  }
+
+  // --- Customer endpoints (continued) ---
+
   @UseGuards(AuthGuard('jwt'))
   @Get(':id')
   findOne(@Request() req, @Param('id') id: string) {
@@ -41,22 +68,5 @@ export class OrderController {
   @Patch(':id/cancel')
   cancel(@Request() req, @Param('id') id: string) {
     return this.orderService.cancelOwnOrder(req.user.userId, id);
-  }
-
-  // --- Seller endpoints ---
-  // NOTE: Business auth is not yet implemented (BusinessModule issues no token).
-  // These are currently identified by businessId only and need a proper guard.
-
-  @Get('business/:businessId')
-  findForBusiness(@Param('businessId') businessId: string) {
-    return this.orderService.findForBusiness(businessId);
-  }
-
-  @Patch(':id/status')
-  updateStatus(
-    @Param('id') id: string,
-    @Body() updateOrderStatusDto: UpdateOrderStatusDto,
-  ) {
-    return this.orderService.updateStatus(id, updateOrderStatusDto.status);
   }
 }
