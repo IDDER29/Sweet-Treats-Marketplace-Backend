@@ -12,9 +12,11 @@ import { MailModule } from '../mail/mail.module';
   imports: [
     TypeOrmModule.forFeature([Users]),
     PassportModule,
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || 'mySecretKey', // Use a strong secret in production!
-      signOptions: { expiresIn: '1h' },
+    JwtModule.registerAsync({
+      useFactory: () => ({
+        secret: process.env.JWT_SECRET || 'mySecretKey', // Use a strong secret in production!
+        signOptions: { expiresIn: '1h' },
+      }),
     }),
     MailModule,
   ],

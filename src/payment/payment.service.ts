@@ -22,9 +22,15 @@ export class PaymentService {
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
   ) {
-    this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-      apiVersion: '2026-05-27.dahlia',
-    });
+    // Falls back to a placeholder so the app can boot without Stripe configured
+    // (dev-friendly, mirrors the JWT_SECRET fallback). Real payment calls will
+    // still fail with a clear Stripe auth error until STRIPE_SECRET_KEY is set.
+    this.stripe = new Stripe(
+      process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder',
+      {
+        apiVersion: '2026-05-27.dahlia',
+      },
+    );
   }
 
   async createPaymentIntent(customerId: string, dto: CreatePaymentIntentDto) {

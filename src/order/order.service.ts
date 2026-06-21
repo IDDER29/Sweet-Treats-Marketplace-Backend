@@ -56,7 +56,9 @@ export class OrderService {
       const products = await queryRunner.manager
         .getRepository(Product)
         .createQueryBuilder('product')
-        .setLock('pessimistic_write')
+        // Lock only the product rows (FOR UPDATE OF product). Postgres forbids
+        // FOR UPDATE on the nullable side of the LEFT JOIN to business.
+        .setLock('pessimistic_write', undefined, ['product'])
         .leftJoinAndSelect('product.business', 'business')
         .where('product.id IN (:...ids)', { ids: productIds })
         .getMany();
@@ -173,7 +175,9 @@ export class OrderService {
         const discount = await queryRunner.manager
           .getRepository(DiscountCode)
           .createQueryBuilder('dc')
-          .setLock('pessimistic_write')
+          // Lock only the discount-code row (FOR UPDATE OF dc); business is the
+          // nullable side of the LEFT JOIN and cannot take FOR UPDATE.
+          .setLock('pessimistic_write', undefined, ['dc'])
           .leftJoinAndSelect('dc.business', 'business')
           .where('dc.code = :code AND business.id = :businessId', {
             code,

@@ -30,10 +30,10 @@ export class Users {
   @Column({ type: 'varchar', length: 255 })
   password: string; // Remember to hash this in your service
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   address: string;
 
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   phone_number: string; // Optionally, add validation for format
 
   @CreateDateColumn({ type: 'timestamp' })
