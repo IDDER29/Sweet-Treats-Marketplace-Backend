@@ -54,6 +54,21 @@ export class Order {
   @Column({ type: 'varchar', length: 10, default: 'gbp' })
   currency: string;
 
+  @Column({ type: 'date', nullable: true })
+  requestedDeliveryDate: string;
+
+  @Column({ nullable: true })
+  deliverySlotId: string;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  deliveryFee: number;
+
+  @Column({ nullable: true })
+  discountCodeId: string;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  discountAmount: number;
+
   @CreateDateColumn()
   createdAt: Date;
 

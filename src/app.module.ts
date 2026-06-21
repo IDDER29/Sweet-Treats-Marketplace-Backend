@@ -21,10 +21,16 @@ import { UserModule } from './user/user.module';
 import { OrderModule } from './order/order.module';
 import { ReviewModule } from './review/review.module';
 import { PaymentModule } from './payment/payment.module';
+import { DeliveryModule } from './delivery/delivery.module';
+import { UploadModule } from './upload/upload.module';
 import { Order } from './order/entities/order.entity';
 import { OrderItem } from './order/entities/order-item.entity';
 import { Review } from './review/entities/review.entity';
 import { Payment } from './payment/entities/payment.entity';
+import { DeliverySlot } from './delivery/entities/delivery-slot.entity';
+import { DiscountModule } from './discount/discount.module';
+import { DiscountCode } from './discount/entities/discount-code.entity';
+import { DiscountCodeUsage } from './discount/entities/discount-code-usage.entity';
 @Module({
   imports: [
     // Import ConfigModule to load environment variables
@@ -57,6 +63,9 @@ import { Payment } from './payment/entities/payment.entity';
         OrderItem,
         Review,
         Payment,
+        DeliverySlot,
+        DiscountCode,
+        DiscountCodeUsage,
       ],
       synchronize: true, // Set to false in production
     }),
@@ -67,6 +76,9 @@ import { Payment } from './payment/entities/payment.entity';
     OrderModule,
     ReviewModule,
     PaymentModule,
+    DeliveryModule,
+    UploadModule,
+    DiscountModule,
   ],
 })
 export class AppModule {}

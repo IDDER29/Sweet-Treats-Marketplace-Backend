@@ -18,6 +18,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { UpdateStockDto } from './dto/update-stock.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
+import { ReorderImagesDto } from './dto/reorder-images.dto';
 import { Product } from './entities/product.entity';
 import { Request as ExpressRequest } from 'express';
 
@@ -89,5 +90,16 @@ export class ProductController {
   @Get(':id/stock')
   getStock(@Param('id') id: string, @Request() req) {
     return this.productService.getStock(id, req.user.businessId);
+  }
+
+  // Reorder (or replace) the images array for a product (business-only)
+  @UseGuards(AuthGuard('business-jwt'))
+  @Patch(':id/images')
+  reorderImages(
+    @Param('id') id: string,
+    @Body() dto: ReorderImagesDto,
+    @Request() req,
+  ) {
+    return this.productService.reorderImages(id, dto.images, req.user.businessId);
   }
 }

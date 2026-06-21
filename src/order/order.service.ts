@@ -10,6 +10,8 @@ import { Order, OrderStatus } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { Users } from '../entities/users.entity';
 import { Product } from '../product/entities/product.entity';
+import { DeliverySlot } from '../delivery/entities/delivery-slot.entity';
+import { DiscountCode, DiscountType } from '../discount/entities/discount-code.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 
 const ORDER_RELATIONS = ['items', 'items.product', 'business', 'customer'];
@@ -23,6 +25,10 @@ export class OrderService {
     private readonly usersRepository: Repository<Users>,
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
+    @InjectRepository(DeliverySlot)
+    private readonly deliverySlotRepository: Repository<DeliverySlot>,
+    @InjectRepository(DiscountCode)
+    private readonly discountCodeRepository: Repository<DiscountCode>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -118,8 +124,95 @@ export class OrderService {
         items.push(item);
       }
 
-      const totalAmount = Number(
+      // Lead time validation
+      if (dto.requestedDeliveryDate) {
+        const maxLeadDays = Math.max(
+          ...products.map((p) => p.leadTimeDays ?? 0),
+        );
+        const earliest = new Date();
+        earliest.setDate(earliest.getDate() + maxLeadDays);
+        earliest.setHours(0, 0, 0, 0);
+        const requested = new Date(dto.requestedDeliveryDate);
+        if (requested < earliest) {
+          throw new BadRequestException(
+            `Earliest delivery date for this order is ${earliest.toISOString().split('T')[0]} (${maxLeadDays} day lead time required)`,
+          );
+        }
+      }
+
+      // Slot booking (inside transaction, pessimistic lock)
+      if (dto.deliverySlotId) {
+        const slot = await queryRunner.manager
+          .getRepository(DeliverySlot)
+          .createQueryBuilder('slot')
+          .setLock('pessimistic_write')
+          .where('slot.id = :id', { id: dto.deliverySlotId })
+          .getOne();
+
+        if (!slot) throw new NotFoundException('Delivery slot not found');
+        if (!slot.isActive)
+          throw new BadRequestException('Delivery slot is not available');
+        if (slot.bookedCount >= slot.capacity)
+          throw new BadRequestException('Delivery slot is fully booked');
+        slot.bookedCount += 1;
+        await queryRunner.manager.save(DeliverySlot, slot);
+      }
+
+      const itemsTotal = Number(
         items.reduce((sum, i) => sum + i.lineTotal, 0).toFixed(2),
+      );
+
+      // Apply discount code if provided
+      let discountAmount = 0;
+      let appliedDiscountCodeId: string | null = null;
+
+      if (dto.discountCode) {
+        const code = dto.discountCode.toUpperCase().trim();
+        const discount = await queryRunner.manager
+          .getRepository(DiscountCode)
+          .createQueryBuilder('dc')
+          .setLock('pessimistic_write')
+          .leftJoinAndSelect('dc.business', 'business')
+          .where('dc.code = :code AND business.id = :businessId', {
+            code,
+            businessId: business.id,
+          })
+          .getOne();
+
+        if (!discount) throw new BadRequestException('Invalid discount code');
+        if (!discount.isActive)
+          throw new BadRequestException('Discount code is not active');
+        const now = new Date();
+        if (now < new Date(discount.validFrom))
+          throw new BadRequestException('Discount code not yet valid');
+        if (discount.validUntil && now > new Date(discount.validUntil))
+          throw new BadRequestException('Discount code expired');
+        if (discount.maxUses && discount.usedCount >= discount.maxUses)
+          throw new BadRequestException('Discount code usage limit reached');
+        if (
+          discount.minimumOrderAmount &&
+          itemsTotal < Number(discount.minimumOrderAmount)
+        ) {
+          throw new BadRequestException(
+            `Minimum order amount is £${discount.minimumOrderAmount}`,
+          );
+        }
+
+        if (discount.type === DiscountType.PERCENTAGE) {
+          discountAmount = Number(
+            ((itemsTotal * Number(discount.value)) / 100).toFixed(2),
+          );
+        } else {
+          discountAmount = Math.min(Number(discount.value), itemsTotal);
+        }
+
+        discount.usedCount += 1;
+        await queryRunner.manager.save(DiscountCode, discount);
+        appliedDiscountCodeId = discount.id;
+      }
+
+      const totalAmount = Number(
+        (itemsTotal - discountAmount + (dto.deliveryFee ?? 0)).toFixed(2),
       );
 
       const order = queryRunner.manager.create(Order, {
@@ -130,6 +223,11 @@ export class OrderService {
         status: OrderStatus.PENDING,
         deliveryAddress: dto.deliveryAddress ?? customer.address,
         notes: dto.notes,
+        requestedDeliveryDate: dto.requestedDeliveryDate,
+        deliverySlotId: dto.deliverySlotId,
+        deliveryFee: dto.deliveryFee ?? 0,
+        discountCodeId: appliedDiscountCodeId,
+        discountAmount,
       });
 
       const saved = await queryRunner.manager.save(Order, order);
@@ -185,6 +283,16 @@ export class OrderService {
           item.quantity,
         );
       }
+    }
+
+    // Release the delivery slot if one was booked
+    if (order.deliverySlotId) {
+      await this.deliverySlotRepository
+        .createQueryBuilder()
+        .update(DeliverySlot)
+        .set({ bookedCount: () => 'GREATEST(booked_count - 1, 0)' })
+        .where('id = :id', { id: order.deliverySlotId })
+        .execute();
     }
 
     const saved = await this.orderRepository.save(order);
@@ -252,6 +360,11 @@ export class OrderService {
       totalAmount: Number(order.totalAmount),
       deliveryAddress: order.deliveryAddress,
       notes: order.notes,
+      requestedDeliveryDate: order.requestedDeliveryDate,
+      deliverySlotId: order.deliverySlotId,
+      deliveryFee: Number(order.deliveryFee),
+      discountAmount: Number(order.discountAmount ?? 0),
+      discountCodeId: order.discountCodeId,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
       customer: order.customer

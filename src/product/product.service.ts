@@ -12,6 +12,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { UpdateStockDto } from './dto/update-stock.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
+import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class ProductService {
@@ -22,6 +23,7 @@ export class ProductService {
     private businessRepository: Repository<Business>,
     @InjectRepository(Category)
     private categoryRepository: Repository<Category>,
+    private readonly storageService: StorageService,
   ) {}
 
   // Create a product associated with a business
@@ -152,7 +154,33 @@ export class ProductService {
       throw new NotFoundException('Product not found');
     }
 
+    // Delete S3 images before removing the DB record
+    if (product.images?.length) {
+      await Promise.allSettled(
+        product.images
+          .filter((img) => img.key)
+          .map((img) => this.storageService.deleteObject(img.key)),
+      );
+    }
+
     await this.productRepository.remove(product);
+  }
+
+  // Reorder (or replace) the images array for a product owned by the given business
+  async reorderImages(
+    id: string,
+    images: { url: string; name: string; key: string }[],
+    businessId: string,
+  ): Promise<Product> {
+    const product = await this.productRepository.findOne({
+      where: { id },
+      relations: ['business'],
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    if (product.business?.id !== businessId)
+      throw new ForbiddenException('Not your product');
+    product.images = images;
+    return this.productRepository.save(product);
   }
 
   // Update stock for a product owned by the given business

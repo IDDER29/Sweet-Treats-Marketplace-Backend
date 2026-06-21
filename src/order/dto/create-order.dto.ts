@@ -7,6 +7,8 @@ import {
   Min,
   IsString,
   IsOptional,
+  IsDateString,
+  IsNumber,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -33,4 +35,25 @@ export class CreateOrderDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsDateString()
+  @IsOptional()
+  requestedDeliveryDate?: string;
+
+  @IsUUID()
+  @IsOptional()
+  deliverySlotId?: string;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  deliveryFee?: number;
+
+  @IsString()
+  @IsOptional()
+  discountCode?: string;
+
+  @IsUUID()
+  @IsOptional()
+  discountCodeId?: string;
 }
