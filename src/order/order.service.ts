@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { Order, OrderStatus } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { Users } from '../entities/users.entity';
@@ -23,10 +23,12 @@ export class OrderService {
     private readonly usersRepository: Repository<Users>,
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
+    private readonly dataSource: DataSource,
   ) {}
 
   // Create an order ("checkout") from a cart payload. Prices are always read
   // from the database, never trusted from the client.
+  // Uses a queryRunner transaction with pessimistic row locks to prevent overselling.
   async checkout(customerId: string, dto: CreateOrderDto) {
     const customer = await this.usersRepository.findOne({
       where: { user_id: customerId },
@@ -35,59 +37,116 @@ export class OrderService {
       throw new NotFoundException('Customer not found');
     }
 
-    const productIds = [...new Set(dto.items.map((i) => i.productId))];
-    const products = await this.productRepository.find({
-      where: { id: In(productIds) },
-      relations: ['business'],
-    });
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (products.length !== productIds.length) {
-      throw new NotFoundException('One or more products could not be found');
-    }
+    try {
+      const productIds = [...new Set(dto.items.map((i) => i.productId))];
 
-    const businessIds = [...new Set(products.map((p) => p.business?.id))];
-    if (businessIds.length > 1) {
-      throw new BadRequestException(
-        'All items in an order must belong to the same business. Place a separate order per business.',
+      // Lock rows for update to prevent race conditions on stock
+      const products = await queryRunner.manager
+        .getRepository(Product)
+        .createQueryBuilder('product')
+        .setLock('pessimistic_write')
+        .leftJoinAndSelect('product.business', 'business')
+        .where('product.id IN (:...ids)', { ids: productIds })
+        .getMany();
+
+      if (products.length !== productIds.length) {
+        throw new NotFoundException('One or more products could not be found');
+      }
+
+      // Validate all same business
+      const businessIds = [
+        ...new Set(products.map((p) => p.business?.id).filter(Boolean)),
+      ];
+      if (businessIds.length > 1) {
+        throw new BadRequestException('All items must belong to the same business.');
+      }
+
+      const business = products[0].business;
+      if (!business) {
+        throw new BadRequestException('Products are not linked to a business');
+      }
+      if (business.isSuspended) {
+        throw new BadRequestException('This business is currently suspended');
+      }
+      if (!business.isAcceptingOrders) {
+        throw new BadRequestException(
+          'This business is not currently accepting orders',
+        );
+      }
+
+      const productMap = new Map(products.map((p) => [p.id, p]));
+
+      // Validate stock and max order quantity, build items
+      const items: OrderItem[] = [];
+      for (const input of dto.items) {
+        const product = productMap.get(input.productId);
+        if (!product.isActive) {
+          throw new BadRequestException(
+            `Product "${product.name}" is not available`,
+          );
+        }
+        if (
+          product.maxOrderQuantity &&
+          input.quantity > product.maxOrderQuantity
+        ) {
+          throw new BadRequestException(
+            `Max order quantity for "${product.name}" is ${product.maxOrderQuantity}`,
+          );
+        }
+        if (product.trackStock) {
+          if (product.stockQuantity < input.quantity) {
+            throw new BadRequestException(
+              `Insufficient stock for "${product.name}". Available: ${product.stockQuantity}`,
+            );
+          }
+          // Decrement stock atomically within the transaction
+          product.stockQuantity -= input.quantity;
+          await queryRunner.manager.save(Product, product);
+        }
+
+        const unitPrice = Number(product.price);
+        const lineTotal = Number((unitPrice * input.quantity).toFixed(2));
+        const item = new OrderItem();
+        item.product = product;
+        item.quantity = input.quantity;
+        item.unitPrice = unitPrice;
+        item.lineTotal = lineTotal;
+        items.push(item);
+      }
+
+      const totalAmount = Number(
+        items.reduce((sum, i) => sum + i.lineTotal, 0).toFixed(2),
       );
+
+      const order = queryRunner.manager.create(Order, {
+        customer,
+        business,
+        items,
+        totalAmount,
+        status: OrderStatus.PENDING,
+        deliveryAddress: dto.deliveryAddress ?? customer.address,
+        notes: dto.notes,
+      });
+
+      const saved = await queryRunner.manager.save(Order, order);
+      await queryRunner.commitTransaction();
+
+      // Reload with full relations for response
+      const full = await this.orderRepository.findOne({
+        where: { id: saved.id },
+        relations: ORDER_RELATIONS,
+      });
+      return this.toResponse(full);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
-
-    const business = products[0].business;
-    if (!business) {
-      throw new BadRequestException('Products are not linked to a business');
-    }
-
-    const productMap = new Map(products.map((p) => [p.id, p]));
-
-    const items = dto.items.map((input) => {
-      const product = productMap.get(input.productId);
-      const unitPrice = Number(product.price);
-      const lineTotal = Number((unitPrice * input.quantity).toFixed(2));
-
-      const item = new OrderItem();
-      item.product = product;
-      item.quantity = input.quantity;
-      item.unitPrice = unitPrice;
-      item.lineTotal = lineTotal;
-      return item;
-    });
-
-    const totalAmount = Number(
-      items.reduce((sum, item) => sum + item.lineTotal, 0).toFixed(2),
-    );
-
-    const order = this.orderRepository.create({
-      customer,
-      business,
-      items,
-      totalAmount,
-      status: OrderStatus.PENDING,
-      deliveryAddress: dto.deliveryAddress ?? customer.address,
-      notes: dto.notes,
-    });
-
-    const saved = await this.orderRepository.save(order);
-    return this.toResponse(saved);
   }
 
   async findForCustomer(customerId: string) {
@@ -116,6 +175,18 @@ export class OrderService {
       throw new BadRequestException('Only pending orders can be cancelled');
     }
     order.status = OrderStatus.CANCELLED;
+
+    // Restore stock for each tracked product
+    for (const item of order.items) {
+      if (item.product && item.product.trackStock) {
+        await this.productRepository.increment(
+          { id: item.product.id },
+          'stockQuantity',
+          item.quantity,
+        );
+      }
+    }
+
     const saved = await this.orderRepository.save(order);
     return this.toResponse(saved);
   }
@@ -134,17 +205,28 @@ export class OrderService {
     return orders.map((order) => this.toResponse(order));
   }
 
-  async updateStatus(
-    id: string,
-    status: OrderStatus,
-    businessId: string,
-  ) {
+  async updateStatus(id: string, status: OrderStatus, businessId: string) {
     const order = await this.getOrderOrFail(id);
     if (order.business?.id !== businessId) {
       throw new ForbiddenException(
         'You do not have access to update this order',
       );
     }
+
+    // Enforce valid status transitions. Payment to PAID is handled by the
+    // webhook in PaymentService, so sellers only drive post-payment flow.
+    const validTransitions: Partial<Record<OrderStatus, OrderStatus[]>> = {
+      [OrderStatus.PENDING]: [OrderStatus.CANCELLED],
+      [OrderStatus.PAID]: [OrderStatus.SHIPPED, OrderStatus.CANCELLED],
+      [OrderStatus.SHIPPED]: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
+    };
+    const allowed = validTransitions[order.status] ?? [];
+    if (!allowed.includes(status)) {
+      throw new BadRequestException(
+        `Cannot transition order from ${order.status} to ${status}`,
+      );
+    }
+
     order.status = status;
     const saved = await this.orderRepository.save(order);
     return this.toResponse(saved);

@@ -6,6 +6,10 @@ import {
   IsArray,
   IsIn,
   ValidateNested,
+  IsInt,
+  IsBoolean,
+  Min,
+  IsUUID,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -44,9 +48,15 @@ export class CreateProductDto {
   @IsOptional()
   ingredients?: string;
 
-  @IsString()
+  @IsArray()
+  @IsString({ each: true })
   @IsOptional()
-  allergens?: string;
+  allergens?: string[];
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  kitchenAllergens?: string[];
 
   @IsString()
   @IsOptional()
@@ -64,6 +74,18 @@ export class CreateProductDto {
   @IsOptional()
   category?: string;
 
+  @IsUUID()
+  @IsOptional()
+  categoryId?: string;
+
+  @IsInt()
+  @IsOptional()
+  seasonStartMonth?: number;
+
+  @IsInt()
+  @IsOptional()
+  seasonEndMonth?: number;
+
   @IsString()
   @IsOptional()
   size?: string;
@@ -80,9 +102,32 @@ export class CreateProductDto {
   @IsOptional()
   storageInstructions?: string; // New field to match the example data
 
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  stockQuantity?: number;
+
+  @IsBoolean()
+  @IsOptional()
+  trackStock?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  leadTimeDays?: number;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  maxOrderQuantity?: number;
+
   @IsString()
   @IsOptional()
-  availability?: string;
+  unitLabel?: string;
 
   @IsString()
   @IsOptional()

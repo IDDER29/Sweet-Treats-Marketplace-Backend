@@ -6,8 +6,10 @@ import {
   Index,
   CreateDateColumn,
   UpdateDateColumn,
+  JoinColumn,
 } from 'typeorm';
 import { Business } from '../../business/entities/business.entity';
+import { Category } from '../../category/entities/category.entity';
 
 @Entity()
 export class Product {
@@ -27,8 +29,11 @@ export class Product {
   @Column({ type: 'text', nullable: true })
   ingredients: string;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  allergens: string;
+  @Column({ type: 'text', array: true, default: [] })
+  allergens: string[];
+
+  @Column({ type: 'text', array: true, default: [] })
+  kitchenAllergens: string[]; // cross-contamination risk
 
   // New field for dietary label
   @Column({ type: 'varchar', length: 255, nullable: true })
@@ -44,6 +49,16 @@ export class Product {
 
   @Column({ type: 'varchar', length: 100, nullable: true })
   category: string;
+
+  @ManyToOne(() => Category, { nullable: true, eager: false })
+  @JoinColumn({ name: 'category_id' })
+  categoryRelation: Category;
+
+  @Column({ nullable: true })
+  seasonStartMonth: number;
+
+  @Column({ nullable: true })
+  seasonEndMonth: number;
 
   @Column({ type: 'varchar', length: 50, default: 'Standard size' })
   size: string;
@@ -73,8 +88,23 @@ export class Product {
   @Column({ type: 'text', nullable: true })
   customizationOptions: string;
 
-  @Column({ type: 'varchar', length: 50, default: 'Available' })
-  availability: string;
+  @Column({ type: 'int', default: 0 })
+  stockQuantity: number;
+
+  @Column({ default: true })
+  trackStock: boolean;
+
+  @Column({ default: true })
+  isActive: boolean;
+
+  @Column({ type: 'int', nullable: true })
+  leadTimeDays: number;
+
+  @Column({ type: 'int', nullable: true })
+  maxOrderQuantity: number;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  unitLabel: string; // e.g. "cookies", "pack of 6"
 
   @Column({ type: 'int', default: 0 })
   rating: number;

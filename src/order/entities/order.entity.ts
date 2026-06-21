@@ -51,6 +51,9 @@ export class Order {
   @Column({ type: 'text', nullable: true })
   notes: string;
 
+  @Column({ type: 'varchar', length: 10, default: 'gbp' })
+  currency: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

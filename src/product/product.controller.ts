@@ -5,16 +5,21 @@ import {
   Body,
   Param,
   Put,
+  Patch,
   Delete,
   Req,
   UseGuards,
+  Request,
+  Query,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { UpdateStockDto } from './dto/update-stock.dto';
+import { ProductQueryDto } from './dto/product-query.dto';
 import { Product } from './entities/product.entity';
-import { Request } from 'express';
+import { Request as ExpressRequest } from 'express';
 
 declare module 'express' {
   interface Request {
@@ -33,17 +38,16 @@ export class ProductController {
   @Post()
   async create(
     @Body() createProductDto: CreateProductDto,
-    @Req() req: Request,
+    @Req() req: ExpressRequest,
   ): Promise<Product> {
     const businessId = req.user.businessId;
     return this.productService.create(createProductDto, businessId);
   }
 
-  // Get all products (optionally filtered by business)
+  // Get all products with filtering and pagination
   @Get()
-  async findAll(@Req() req: Request): Promise<Product[]> {
-    const businessId = req.user?.businessId;
-    return this.productService.findAll(businessId);
+  async findAll(@Query() query: ProductQueryDto): Promise<any> {
+    return this.productService.findAll(query);
   }
 
   // Get a specific product by its ID
@@ -67,5 +71,23 @@ export class ProductController {
   @Delete(':id')
   async remove(@Param('id') id: string): Promise<void> {
     return this.productService.remove(id);
+  }
+
+  // Update stock for a product (business-only)
+  @UseGuards(AuthGuard('business-jwt'))
+  @Patch(':id/stock')
+  updateStock(
+    @Param('id') id: string,
+    @Body() updateStockDto: UpdateStockDto,
+    @Request() req,
+  ) {
+    return this.productService.updateStock(id, updateStockDto, req.user.businessId);
+  }
+
+  // Get stock info for a product (business-only)
+  @UseGuards(AuthGuard('business-jwt'))
+  @Get(':id/stock')
+  getStock(@Param('id') id: string, @Request() req) {
+    return this.productService.getStock(id, req.user.businessId);
   }
 }

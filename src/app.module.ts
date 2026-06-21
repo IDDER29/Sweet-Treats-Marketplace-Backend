@@ -5,6 +5,8 @@ import { BusinessModule } from './business/business.module';
 import { Business } from './business/entities/business.entity';
 import { ProductModule } from './product/product.module';
 import { Product } from './product/entities/product.entity';
+import { CategoryModule } from './category/category.module';
+import { Category } from './category/entities/category.entity';
 import { Users } from './entities/users.entity';
 import { Businesses } from './entities/businesses.entity';
 import { Reviews } from './entities/reviews.entity';
@@ -18,9 +20,11 @@ import { DeliveryPerson } from './entities/deliveryPerson.entity';
 import { UserModule } from './user/user.module';
 import { OrderModule } from './order/order.module';
 import { ReviewModule } from './review/review.module';
+import { PaymentModule } from './payment/payment.module';
 import { Order } from './order/entities/order.entity';
 import { OrderItem } from './order/entities/order-item.entity';
 import { Review } from './review/entities/review.entity';
+import { Payment } from './payment/entities/payment.entity';
 @Module({
   imports: [
     // Import ConfigModule to load environment variables
@@ -38,6 +42,7 @@ import { Review } from './review/entities/review.entity';
       entities: [
         Business,
         Product,
+        Category,
         Users,
         Businesses,
         Reviews,
@@ -51,14 +56,17 @@ import { Review } from './review/entities/review.entity';
         Order,
         OrderItem,
         Review,
+        Payment,
       ],
       synchronize: true, // Set to false in production
     }),
     BusinessModule,
     ProductModule,
+    CategoryModule,
     UserModule,
     OrderModule,
     ReviewModule,
+    PaymentModule,
   ],
 })
 export class AppModule {}
