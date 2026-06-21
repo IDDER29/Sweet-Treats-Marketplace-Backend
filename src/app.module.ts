@@ -36,6 +36,8 @@ import { DiscountCodeUsage } from './discount/entities/discount-code-usage.entit
 import { AdminModule } from './admin/admin.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { MailModule } from './mail/mail.module';
+import { CustomOrderModule } from './custom-order/custom-order.module';
+import { CustomOrderRequest } from './custom-order/entities/custom-order-request.entity';
 @Module({
   imports: [
     // Import ConfigModule to load environment variables
@@ -71,6 +73,7 @@ import { MailModule } from './mail/mail.module';
         DeliverySlot,
         DiscountCode,
         DiscountCodeUsage,
+        CustomOrderRequest,
       ],
       synchronize: process.env.NODE_ENV !== 'production',
       migrations: ['dist/migrations/*.js'],
@@ -94,6 +97,7 @@ import { MailModule } from './mail/mail.module';
     AdminModule,
     AnalyticsModule,
     MailModule,
+    CustomOrderModule,
   ],
   providers: [
     {
