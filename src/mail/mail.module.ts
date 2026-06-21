@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { join } from 'path';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/adapters/handlebars.adapter';
 import { MailService } from './mail.service';
@@ -22,7 +23,10 @@ import { MailService } from './mail.service';
           from: process.env.MAIL_FROM || '"Sweet Treats" <noreply@sweettreats.local>',
         },
         template: {
-          dir: `${process.cwd()}/src/mail/templates`,
+          // Resolve relative to this module so it works in dev (src/mail) and
+          // in the compiled build (dist/mail); .hbs files are copied to dist via
+          // the "assets" config in nest-cli.json.
+          dir: join(__dirname, 'templates'),
           adapter: new HandlebarsAdapter(),
           options: {
             strict: true,

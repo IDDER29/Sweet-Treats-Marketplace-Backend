@@ -1,5 +1,84 @@
-<h1>New Order Received</h1>
-<p>Order #{{orderId}} has been placed with your business.</p>
-<p>Total: {{currency}} {{totalAmount}}</p>
-<p>Items: {{#each items}}<br>- {{this.name}} x{{this.quantity}}{{/each}}</p>
-<p>Please prepare this order.</p>
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>New Order Received</title>
+  </head>
+  <body style="margin: 0; padding: 0; background-color: #f2f0f1; -webkit-font-smoothing: antialiased;">
+    <!-- preheader (hidden preview text) -->
+    <div style="display: none; max-height: 0; overflow: hidden; opacity: 0;">
+      You have a new order to prepare on Sweet Treats.
+    </div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #f2f0f1;">
+      <tr>
+        <td align="center" style="padding: 24px 12px;">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width: 600px; max-width: 600px; background-color: #ffffff; border-radius: 10px; overflow: hidden; font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+
+            <!-- header -->
+            <tr>
+              <td align="center" style="background-color: #d6336c; padding: 28px 24px;">
+                <span style="font-size: 22px; font-weight: 700; color: #ffffff; letter-spacing: 0.3px;">🧁 Sweet Treats</span>
+                <div style="margin-top: 4px; font-size: 12px; color: #ffd9e6; text-transform: uppercase; letter-spacing: 1px;">Seller notification</div>
+              </td>
+            </tr>
+
+            <!-- hero -->
+            <tr>
+              <td style="padding: 36px 32px 8px 32px;">
+                <h1 style="margin: 0; font-size: 24px; line-height: 1.3; color: #2b2b2b;">New order received 🔔</h1>
+              </td>
+            </tr>
+
+            <!-- body -->
+            <tr>
+              <td style="padding: 8px 32px 0 32px; font-size: 15px; line-height: 1.6; color: #555555;">
+                <p style="margin: 0 0 16px 0;">You've got a new order — time to get baking!</p>
+                <p style="margin: 0 0 24px 0; font-size: 13px; color: #888888;">Order reference<br /><strong style="color: #555555; font-size: 14px;">#{{orderId}}</strong></p>
+              </td>
+            </tr>
+
+            <!-- items -->
+            <tr>
+              <td style="padding: 0 32px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #eeeeee; border-radius: 8px; border-collapse: separate;">
+                  <tr>
+                    <td colspan="2" style="padding: 14px 18px; background-color: #faf6f8; border-bottom: 1px solid #eeeeee; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #b02a5b;">Items to prepare</td>
+                  </tr>
+                  {{#each items}}
+                  <tr>
+                    <td style="padding: 12px 18px; font-size: 14px; color: #444444; border-bottom: 1px solid #f4f4f4;">{{this.name}}</td>
+                    <td align="right" style="padding: 12px 18px; font-size: 14px; color: #888888; border-bottom: 1px solid #f4f4f4; white-space: nowrap;">&times; {{this.quantity}}</td>
+                  </tr>
+                  {{/each}}
+                  <tr>
+                    <td style="padding: 14px 18px; font-size: 15px; font-weight: 700; color: #2b2b2b;">Order total</td>
+                    <td align="right" style="padding: 14px 18px; font-size: 15px; font-weight: 700; color: #d6336c; white-space: nowrap;">{{currency}} {{totalAmount}}</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- closing -->
+            <tr>
+              <td style="padding: 28px 32px 36px 32px; font-size: 15px; line-height: 1.6; color: #555555;">
+                <p style="margin: 0;">Please prepare this order and update its status from your dashboard so the customer stays in the loop.</p>
+              </td>
+            </tr>
+
+            <!-- footer -->
+            <tr>
+              <td style="padding: 24px 32px; background-color: #faf6f8; border-top: 1px solid #f0e8ec; font-size: 12px; line-height: 1.5; color: #999999;" align="center">
+                Sweet Treats Marketplace<br />
+                This is an automated message — please don't reply to this email.
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
