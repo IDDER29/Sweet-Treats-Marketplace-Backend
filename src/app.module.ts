@@ -16,6 +16,11 @@ import { OrderItems } from './entities/orderItems.entity';
 import { Payments } from './entities/payments.entity';
 import { DeliveryPerson } from './entities/deliveryPerson.entity';
 import { UserModule } from './user/user.module';
+import { OrderModule } from './order/order.module';
+import { ReviewModule } from './review/review.module';
+import { Order } from './order/entities/order.entity';
+import { OrderItem } from './order/entities/order-item.entity';
+import { Review } from './review/entities/review.entity';
 @Module({
   imports: [
     // Import ConfigModule to load environment variables
@@ -43,12 +48,17 @@ import { UserModule } from './user/user.module';
         OrderItems,
         Payments,
         DeliveryPerson,
-      ], // Include both Business and Product entities
+        Order,
+        OrderItem,
+        Review,
+      ],
       synchronize: true, // Set to false in production
     }),
     BusinessModule,
     ProductModule,
     UserModule,
+    OrderModule,
+    ReviewModule,
   ],
 })
 export class AppModule {}

@@ -39,7 +39,7 @@ Config is read directly from `process.env` via `@nestjs/config` (global). There 
 
 ## Architecture
 
-NestJS 10 + TypeORM (PostgreSQL). `main.ts` → `AppModule` wires three feature modules: `UserModule`, `BusinessModule`, `ProductModule`.
+NestJS 10 + TypeORM (PostgreSQL). `main.ts` → `AppModule` wires the feature modules: `UserModule`, `BusinessModule`, `ProductModule`, `OrderModule`, `ReviewModule`.
 
 A **global `ValidationPipe`** (`main.ts`) runs with `whitelist`, `forbidNonWhitelisted`, and `transform` enabled. Every request body must have a matching `class-validator` DTO; unknown properties are rejected outright. Add/adjust DTOs in the relevant `dto/` folder when changing any endpoint's accepted payload.
 
@@ -53,6 +53,8 @@ There are effectively **two data models** in this repo, and they do not share ta
 
 Because both sets are registered, the generated database contains **both** `business` and `businesses`, **and** both `product` and `products` tables. When adding a persisted entity, register it in `app.module.ts`'s `forRoot` `entities` array **and** in the owning module's `TypeOrmModule.forFeature`.
 
+`OrderModule` and `ReviewModule` deliberately build on the **active** set (`Users`, `Business`, `Product`) via new `Order`/`OrderItem`/`Review` entities (`src/order`, `src/review`), so the dead `src/entities/Orders|OrderItems|Reviews` remain unused duplicates. Follow this pattern (reference the active entities) for any new commerce feature.
+
 ### Modules and auth (inconsistent by design — match the module you edit)
 
 - **`UserModule` (`/users`)** — the only module with real JWT auth. Register/login hash with bcrypt (10 rounds); login issues a signed JWT with payload `{ userId, role }`. Protected routes use `@UseGuards(AuthGuard('jwt'))` + the Passport `JwtStrategy`, which puts `{ userId, role }` on `req.user`. Uses the `Users` entity (snake_case `user_id` PK, `UserRole` enum).
@@ -60,6 +62,10 @@ Because both sets are registered, the generated database contains **both** `busi
 - **`BusinessModule` (`/business`)** — register / `:id` / `email/:email` / login. bcrypt hashing with **12 rounds** (note: differs from UserModule's 10). **Issues no token** — `login` just returns the business record. `findById`/`login` return the full entity including the password hash.
 
 - **`ProductModule` (`/products`)** — CRUD over `Product`, each tied to a `Business`. **`POST /products` uses an ad-hoc auth scheme, not JWT**: it reads the `Authorization: Bearer <...>` header, `JSON.parse`s the token as a stringified session object, and pulls `session.user.id` as the business id. This is unique to this endpoint; don't assume JWT here.
+
+- **`OrderModule` (`/orders`)** — checkout, order history, and status. Customer routes (`POST /orders`, `GET /orders`, `GET /orders/:id`, `PATCH /orders/:id/cancel`) use real JWT (`AuthGuard('jwt')`, `req.user.userId`). Seller routes (`GET /orders/business/:businessId`, `PATCH /orders/:id/status`) are **not yet guarded** — pending real business auth. Prices are recomputed server-side at checkout; one order maps to exactly one business (multi-vendor carts must be split client-side).
+
+- **`ReviewModule` (`/products/:productId/reviews`)** — `GET` (public) lists reviews; `POST` (JWT) creates one and recomputes the cached `Product.rating` (rounded int) and `reviewCount`.
 
 ## Gotchas
 
