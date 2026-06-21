@@ -35,7 +35,7 @@ Config is read directly from `process.env` via `@nestjs/config` (global). There 
 - `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_NAME` — PostgreSQL connection (`src/app.module.ts`)
 - `JWT_SECRET` — signing secret for user auth. **Falls back to the hardcoded `'mySecretKey'`** in both `user.module.ts` and `jwt.strategy.ts` if unset.
 
-`synchronize: true` is enabled, so TypeORM auto-creates/alters tables from entity definitions on every boot. Convenient in dev, destructive in prod — disable before any production use.
+`synchronize` is enabled in dev (`NODE_ENV` not set or not `'production'`) — TypeORM auto-creates/alters tables on every boot. In production (`NODE_ENV=production`) it is disabled and `migrationsRun` takes over. See the Security section for details.
 
 ## Architecture
 
@@ -66,6 +66,19 @@ Because both sets are registered, the generated database contains **both** `busi
 - **`OrderModule` (`/orders`)** — checkout, order history, and status. Customer routes (`POST /orders`, `GET /orders`, `GET /orders/:id`, `PATCH /orders/:id/cancel`) use real JWT (`AuthGuard('jwt')`, `req.user.userId`). Seller routes (`GET /orders/business/:businessId`, `PATCH /orders/:id/status`) are **not yet guarded** — pending real business auth. Prices are recomputed server-side at checkout; one order maps to exactly one business (multi-vendor carts must be split client-side).
 
 - **`ReviewModule` (`/products/:productId/reviews`)** — `GET` (public) lists reviews; `POST` (JWT) creates one and recomputes the cached `Product.rating` (rounded int) and `reviewCount`.
+
+## Security
+
+Phase 11 hardening is applied. Key points:
+
+- **Rate limiting** — `ThrottlerModule` (global `APP_GUARD`) enforces three tiers: 10 req/s (`short`), 100 req/min (`medium`), 1000 req/hr (`long`). Auth-sensitive endpoints override the defaults:
+  - `POST /users/auth/login` — 5/min · 20/hr
+  - `POST /users/forgot-password` — 3/min · 10/hr
+  - `POST /payments/webhook` — `@SkipThrottle()` (Stripe sends high-frequency callbacks)
+- **HTTP security headers** — `helmet()` middleware is applied in `main.ts` before all routes.
+- **CORS** — configured via `app.enableCors()` in `main.ts`. Allowed origins default to `['http://localhost:3000', 'http://localhost:3001']`; override with the `ALLOWED_ORIGINS` env var (comma-separated).
+- **JWT_SECRET warning** — on startup, if `JWT_SECRET` is not set, a `console.warn` fires reminding you to set it. The app does not crash (dev-friendly), but the insecure fallback `'mySecretKey'` is in use.
+- **synchronize disabled in production** — `TypeOrmModule` uses `synchronize: process.env.NODE_ENV !== 'production'`. When `NODE_ENV=production`, `synchronize` is `false` and `migrationsRun` is `true` (looks for compiled migrations in `dist/migrations/*.js`). In dev (default), auto-sync is still on for convenience.
 
 ## Gotchas
 

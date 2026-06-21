@@ -11,6 +11,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { SkipThrottle } from '@nestjs/throttler';
 import { PaymentService } from './payment.service';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { RefundPaymentDto } from './dto/refund-payment.dto';
@@ -26,6 +27,7 @@ export class PaymentController {
   }
 
   // Raw body required for Stripe signature verification — enabled in main.ts via rawBody: true
+  @SkipThrottle()
   @Post('webhook')
   handleWebhook(
     @Headers('stripe-signature') signature: string,
