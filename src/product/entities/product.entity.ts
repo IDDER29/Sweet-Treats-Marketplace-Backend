@@ -4,6 +4,7 @@ import {
   Column,
   ManyToOne,
   Index,
+  Check,
   CreateDateColumn,
   UpdateDateColumn,
   JoinColumn,
@@ -12,6 +13,7 @@ import { Business } from '../../business/entities/business.entity';
 import { Category } from '../../category/entities/category.entity';
 
 @Entity()
+@Check('CHK_product_price_nonneg', '"price" >= 0')
 export class Product {
   @PrimaryGeneratedColumn('uuid')
   id: string;

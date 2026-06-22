@@ -35,6 +35,13 @@ export class PaymentService {
     );
   }
 
+  // Convert a decimal currency amount (e.g. order.totalAmount, stored as a
+  // string by TypeORM) to integer minor units for Stripe. Rounding to the
+  // nearest penny avoids IEEE-754 drift on the * 100 conversion.
+  private toMinorUnits(amount: number | string): number {
+    return Math.round(Number(amount) * 100);
+  }
+
   async createPaymentIntent(customerId: string, dto: CreatePaymentIntentDto) {
     const order = await this.orderRepository.findOne({
       where: { id: dto.orderId },
@@ -54,7 +61,12 @@ export class PaymentService {
       throw new BadRequestException('Order is already paid');
     }
 
-    const amountInCents = Math.round(Number(order.totalAmount) * 100);
+    const amountInCents = this.toMinorUnits(order.totalAmount);
+    if (amountInCents <= 0) {
+      throw new BadRequestException(
+        'Order total must be greater than zero to take payment',
+      );
+    }
     const paymentIntent = await this.stripe.paymentIntents.create({
       amount: amountInCents,
       currency: order.currency || 'gbp',

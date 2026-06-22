@@ -8,6 +8,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  Check,
 } from 'typeorm';
 import { Users } from '../../entities/users.entity';
 import { Business } from '../../business/entities/business.entity';
@@ -25,6 +26,7 @@ export enum OrderStatus {
 @Index('idx_order_business_created', ['business', 'createdAt'])
 @Index('idx_order_customer_created', ['customer', 'createdAt'])
 @Index('idx_order_status', ['status'])
+@Check('CHK_order_total_nonneg', '"totalAmount" >= 0')
 export class Order {
   @PrimaryGeneratedColumn('uuid')
   id: string;

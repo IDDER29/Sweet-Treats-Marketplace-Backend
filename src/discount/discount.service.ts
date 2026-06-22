@@ -31,6 +31,17 @@ export class DiscountService {
     });
     if (!business) throw new NotFoundException('Business not found');
 
+    // A percentage code over 100% would otherwise discount more than the order
+    // (the checkout clamps it, but reject it up front with a clear message).
+    if (
+      dto.type === DiscountType.PERCENTAGE &&
+      Number(dto.value) > 100
+    ) {
+      throw new BadRequestException(
+        'Percentage discount value cannot exceed 100',
+      );
+    }
+
     const code = dto.code.toUpperCase().trim();
     const existing = await this.discountRepository.findOne({ where: { code } });
     if (existing) throw new BadRequestException('Discount code already exists');
