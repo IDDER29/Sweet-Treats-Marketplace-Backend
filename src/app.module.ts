@@ -19,6 +19,7 @@ import { UserModule } from './user/user.module';
 import { OrderModule } from './order/order.module';
 import { ReviewModule } from './review/review.module';
 import { PaymentModule } from './payment/payment.module';
+import { PayoutsModule } from './payouts/payouts.module';
 import { DeliveryModule } from './delivery/delivery.module';
 import { UploadModule } from './upload/upload.module';
 import { DiscountModule } from './discount/discount.module';
@@ -70,6 +71,7 @@ import { IdempotencyInterceptor } from './common/idempotency/idempotency.interce
     OrderModule,
     ReviewModule,
     PaymentModule,
+    PayoutsModule,
     DeliveryModule,
     UploadModule,
     DiscountModule,

@@ -157,9 +157,14 @@ tests pass; no service does ad-hoc ownership `where` checks.
   and tested DR/restore remain.
 - 🔒 Sentry/metrics/tracing wired to alerting (SLO-based).
 
-## Phase 10 — Commerce depth  🔒
-- 🔒 Stripe Connect seller payouts + reconciliation; refund/dispute/chargeback
-  flows; tax/VAT; price/inventory snapshot-at-order-time guarantees.
+## Phase 10 — Commerce depth  (Connect scaffolded; ADR-0007)
+- ✅ Stripe Connect seller payouts — scaffolded + unit-tested: Express accounts,
+  destination charges (`application_fee_amount` + `transfer_data.destination`),
+  fee/split math clamped to `[0, gross]`, `payoutsEnabled` gating,
+  connected-account data model + migration, `POST /payouts/onboarding-link`, and
+  `account.updated` sync. Live Stripe calls need a Connect-enabled key. ADR-0007.
+- 🔒 Reconciliation; refund/dispute/chargeback flows (reverse_transfer);
+  refund-after-payout; tax/VAT; price/inventory snapshot-at-order-time.
 
 ## Phase 11 — Framework upgrade  🔒 (own branch, reviewed)
 - 🔒 NestJS 10→11 / Express 5 (rewrite the `@Delete(':key(*)')` wildcard route,
