@@ -34,6 +34,8 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { MailModule } from './mail/mail.module';
 import { CustomOrderModule } from './custom-order/custom-order.module';
 import { CustomOrderRequest } from './custom-order/entities/custom-order-request.entity';
+import { AuditModule } from './audit/audit.module';
+import { AuditLog } from './audit/entities/audit-log.entity';
 @Module({
   imports: [
     // Import ConfigModule to load environment variables
@@ -63,6 +65,7 @@ import { CustomOrderRequest } from './custom-order/entities/custom-order-request
         DiscountCode,
         DiscountCodeUsage,
         CustomOrderRequest,
+        AuditLog,
       ],
       synchronize: process.env.NODE_ENV !== 'production',
       migrations: ['dist/migrations/*.js'],
@@ -88,6 +91,7 @@ import { CustomOrderRequest } from './custom-order/entities/custom-order-request
     MailModule,
     CustomOrderModule,
     HealthModule,
+    AuditModule,
   ],
   controllers: [AppController],
   providers: [

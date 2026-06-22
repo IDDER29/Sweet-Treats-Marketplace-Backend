@@ -9,11 +9,13 @@ import { Product } from '../product/entities/product.entity';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
 import { RolesGuard } from './guards/roles.guard';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Business, Users, Order, OrderItem, Product]),
     PassportModule,
+    AuditModule,
   ],
   providers: [AdminService, RolesGuard],
   controllers: [AdminController],

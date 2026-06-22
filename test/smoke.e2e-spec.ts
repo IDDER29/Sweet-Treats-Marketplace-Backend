@@ -1,7 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import request from 'supertest';
 import { AppModule } from './../src/app.module';
+import { Users } from './../src/entities/users.entity';
 
 /**
  * Smoke / integration tests.
@@ -143,6 +146,59 @@ describe('Smoke / integration (e2e)', () => {
         .get('/admin/dashboard')
         .set('Authorization', `Bearer ${customerToken}`)
         .expect(403);
+    });
+  });
+
+  describe('Audit logging', () => {
+    it('writes an immutable audit entry for an admin action', async () => {
+      // Mint an ADMIN: register a user, promote via the repo, log in for a token
+      // whose claims carry the ADMIN role.
+      const adminEmail = `e2e_admin_${uniq}@test.com`;
+      await request(http)
+        .post('/users/auth/register')
+        .send({ first_name: 'Ad', last_name: 'Min', email: adminEmail, password })
+        .expect(201);
+      const usersRepo: Repository<Users> = app.get(getRepositoryToken(Users));
+      await usersRepo.update({ email: adminEmail }, { role: 'ADMIN' as any });
+      const adminLogin = await request(http)
+        .post('/users/auth/login')
+        .send({ email: adminEmail, password })
+        .expect(201);
+      const adminToken = adminLogin.body.token;
+
+      // A target business to moderate.
+      const targetEmail = `e2e_target_${uniq}@test.com`;
+      const reg = await request(http)
+        .post('/business/register')
+        .send({
+          firstName: 'Tgt',
+          lastName: 'Biz',
+          businessName: `Target Bakery ${uniq}`,
+          email: targetEmail,
+          password,
+          businessType: 'bakery',
+          address: '9 Target St',
+          phoneNumber: '555-0900',
+          agreeToTerms: true,
+        })
+        .expect(201);
+      const targetId = reg.body.business.id;
+
+      await request(http)
+        .post(`/admin/businesses/${targetId}/suspend`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ reason: 'policy violation' })
+        .expect(201);
+
+      const audit = await request(http)
+        .get(`/admin/audit/Business/${targetId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(audit.body.length).toBeGreaterThanOrEqual(1);
+      expect(audit.body[0].action).toBe('business.suspend');
+      expect(audit.body[0].metadata.reason).toBe('policy violation');
+      // sensitive fields must never be persisted to audit metadata
+      expect(audit.body[0].metadata.password).toBeUndefined();
     });
   });
 
