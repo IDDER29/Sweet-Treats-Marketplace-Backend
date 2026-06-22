@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import Stripe from 'stripe';
 import { Payment, PaymentStatus } from './entities/payment.entity';
 import { Order, OrderStatus } from '../order/entities/order.entity';
@@ -118,11 +118,14 @@ export class PaymentService {
     });
     if (!payment) return; // Unknown payment, ignore
 
-    // Idempotent — skip if already succeeded
-    if (payment.status === PaymentStatus.SUCCEEDED) return;
-
-    payment.status = PaymentStatus.SUCCEEDED;
-    await this.paymentRepository.save(payment);
+    // Atomically claim the transition so concurrent webhook deliveries don't
+    // both mark the order PAID. Only the delivery whose UPDATE actually flips a
+    // non-succeeded row proceeds; the rest see affected === 0 and stop.
+    const claim = await this.paymentRepository.update(
+      { id: payment.id, status: Not(PaymentStatus.SUCCEEDED) },
+      { status: PaymentStatus.SUCCEEDED },
+    );
+    if (!claim.affected) return;
 
     // Transition order to PAID
     await this.orderRepository.update(payment.order.id, {

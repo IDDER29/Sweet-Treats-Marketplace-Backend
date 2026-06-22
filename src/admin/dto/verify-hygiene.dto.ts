@@ -1,11 +1,18 @@
-import { IsString, IsOptional, IsBoolean } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsBoolean,
+  IsDateString,
+  MaxLength,
+} from 'class-validator';
 
 export class VerifyHygieneDto {
   @IsString()
   @IsOptional()
+  @MaxLength(100)
   hygieneCertificateNumber?: string;
 
-  @IsString()
+  @IsDateString()
   @IsOptional()
   hygieneCertificateExpiry?: string;
 

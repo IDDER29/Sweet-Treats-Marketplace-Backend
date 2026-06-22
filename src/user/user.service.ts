@@ -106,6 +106,13 @@ export class UsersService {
     return { message: 'Account deleted successfully' };
   }
 
+  // Per-user signing secret for reset tokens, bound to the current password
+  // hash. When the password changes the hash changes, so any previously issued
+  // reset token stops verifying — making reset links effectively single-use.
+  private resetTokenSecret(user: Users): string {
+    return `${process.env.JWT_SECRET || 'mySecretKey'}:${user.password}`;
+  }
+
   async forgotPassword(email: string) {
     const user = await this.usersRepository.findOne({ where: { email } });
 
@@ -113,7 +120,7 @@ export class UsersService {
     if (user) {
       const token = this.jwtService.sign(
         { userId: user.user_id, purpose: 'password-reset' },
-        { expiresIn: '1h' },
+        { secret: this.resetTokenSecret(user), expiresIn: '1h' },
       );
       const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/reset-password?token=${token}`;
       const name = user.first_name || user.email;
@@ -124,22 +131,25 @@ export class UsersService {
   }
 
   async resetPassword(token: string, newPassword: string) {
-    let payload: any;
-    try {
-      payload = this.jwtService.verify(token);
-    } catch {
+    // Decode (without verifying) only to learn which user the token is for, so
+    // we can rebuild their per-user secret.
+    const decoded: any = this.jwtService.decode(token);
+    if (!decoded || decoded.purpose !== 'password-reset' || !decoded.userId) {
       throw new BadRequestException('Invalid or expired token');
     }
 
-    if (payload.purpose !== 'password-reset') {
-      throw new BadRequestException('Invalid token purpose');
-    }
-
     const user = await this.usersRepository.findOne({
-      where: { user_id: payload.userId },
+      where: { user_id: decoded.userId },
     });
     if (!user) {
       throw new NotFoundException('User not found');
+    }
+
+    // Verify the signature against the hash-bound secret (also enforces expiry).
+    try {
+      this.jwtService.verify(token, { secret: this.resetTokenSecret(user) });
+    } catch {
+      throw new BadRequestException('Invalid or expired token');
     }
 
     user.password = await bcrypt.hash(newPassword, 10);

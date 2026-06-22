@@ -1,6 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import { Category } from './entities/category.entity';
 import { CreateCategoryDto } from './dto/create-category.dto';
 
@@ -28,7 +32,17 @@ export class CategoryService {
       category.parent = parent;
     }
 
-    return this.categoryRepository.save(category);
+    try {
+      return await this.categoryRepository.save(category);
+    } catch (err) {
+      // Postgres unique_violation on name/slug -> 409 instead of a raw 500.
+      if (err instanceof QueryFailedError && (err as any).code === '23505') {
+        throw new ConflictException(
+          'A category with that name or slug already exists',
+        );
+      }
+      throw err;
+    }
   }
 
   async findAll(): Promise<Category[]> {

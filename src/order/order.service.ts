@@ -12,6 +12,7 @@ import { Users } from '../entities/users.entity';
 import { Product } from '../product/entities/product.entity';
 import { DeliverySlot } from '../delivery/entities/delivery-slot.entity';
 import { DiscountCode, DiscountType } from '../discount/entities/discount-code.entity';
+import { DiscountCodeUsage } from '../discount/entities/discount-code-usage.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { MailService } from '../mail/mail.service';
 
@@ -195,6 +196,22 @@ export class OrderService {
           throw new BadRequestException('Discount code expired');
         if (discount.maxUses && discount.usedCount >= discount.maxUses)
           throw new BadRequestException('Discount code usage limit reached');
+        if (discount.maxUsesPerCustomer) {
+          const userUsages = await queryRunner.manager.count(
+            DiscountCodeUsage,
+            {
+              where: {
+                discountCode: { id: discount.id },
+                user: { user_id: customerId },
+              },
+            },
+          );
+          if (userUsages >= discount.maxUsesPerCustomer) {
+            throw new BadRequestException(
+              'You have already used this discount code the maximum number of times',
+            );
+          }
+        }
         if (
           discount.minimumOrderAmount &&
           itemsTotal < Number(discount.minimumOrderAmount)
@@ -242,6 +259,17 @@ export class OrderService {
       });
 
       const saved = await queryRunner.manager.save(Order, order);
+
+      // Record per-customer discount usage so maxUsesPerCustomer is enforceable.
+      if (appliedDiscountCodeId) {
+        const usage = queryRunner.manager.create(DiscountCodeUsage, {
+          discountCode: { id: appliedDiscountCodeId },
+          user: { user_id: customerId },
+          order: { id: saved.id },
+        });
+        await queryRunner.manager.save(DiscountCodeUsage, usage);
+      }
+
       await queryRunner.commitTransaction();
 
       // Reload with full relations for response
@@ -363,6 +391,8 @@ export class OrderService {
         'usedCount',
         1,
       );
+      // Remove the per-customer usage record so the customer's count is freed.
+      await manager.delete(DiscountCodeUsage, { order: { id: order.id } });
     }
   }
 
@@ -390,10 +420,13 @@ export class OrderService {
 
     // Enforce valid status transitions. Payment to PAID is handled by the
     // webhook in PaymentService, so sellers only drive post-payment flow.
-    const validTransitions: Partial<Record<OrderStatus, OrderStatus[]>> = {
+    const validTransitions: Record<OrderStatus, OrderStatus[]> = {
       [OrderStatus.PENDING]: [OrderStatus.CANCELLED],
       [OrderStatus.PAID]: [OrderStatus.SHIPPED, OrderStatus.CANCELLED],
       [OrderStatus.SHIPPED]: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
+      // Terminal states — no further transitions.
+      [OrderStatus.DELIVERED]: [],
+      [OrderStatus.CANCELLED]: [],
     };
     const allowed = validTransitions[order.status] ?? [];
     if (!allowed.includes(status)) {

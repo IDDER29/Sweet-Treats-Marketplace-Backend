@@ -12,6 +12,7 @@ import { AdminService } from './admin.service';
 import { RolesGuard } from './guards/roles.guard';
 import { SuspendBusinessDto } from './dto/suspend-business.dto';
 import { VerifyHygieneDto } from './dto/verify-hygiene.dto';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 @Controller('admin')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -24,14 +25,8 @@ export class AdminController {
   }
 
   @Get('businesses')
-  getAllBusinesses(
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-  ) {
-    return this.adminService.getAllBusinesses(
-      page ? parseInt(page, 10) : 1,
-      limit ? parseInt(limit, 10) : 20,
-    );
+  getAllBusinesses(@Query() q: PaginationQueryDto) {
+    return this.adminService.getAllBusinesses(q.page, q.limit);
   }
 
   @Get('businesses/:id')
@@ -61,24 +56,12 @@ export class AdminController {
   }
 
   @Get('users')
-  getAllUsers(
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-  ) {
-    return this.adminService.getAllUsers(
-      page ? parseInt(page, 10) : 1,
-      limit ? parseInt(limit, 10) : 20,
-    );
+  getAllUsers(@Query() q: PaginationQueryDto) {
+    return this.adminService.getAllUsers(q.page, q.limit);
   }
 
   @Get('orders')
-  getAllOrders(
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-  ) {
-    return this.adminService.getAllOrders(
-      page ? parseInt(page, 10) : 1,
-      limit ? parseInt(limit, 10) : 20,
-    );
+  getAllOrders(@Query() q: PaginationQueryDto) {
+    return this.adminService.getAllOrders(q.page, q.limit);
   }
 }

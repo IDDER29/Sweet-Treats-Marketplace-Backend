@@ -6,6 +6,7 @@ import {
   IsArray,
   IsUrl,
   Min,
+  Max,
   MaxLength,
 } from 'class-validator';
 
@@ -25,6 +26,7 @@ export class CreateCustomOrderDto {
 
   @IsInt()
   @Min(1)
+  @Max(10000)
   @IsOptional()
   servings?: number;
 
