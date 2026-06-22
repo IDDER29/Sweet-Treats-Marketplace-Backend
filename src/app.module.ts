@@ -7,7 +7,10 @@ import { AppService } from './app.service';
 import { loggerConfig } from './common/logger.config';
 import { HealthModule } from './health/health.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { APP_GUARD } from '@nestjs/core';
+import type Redis from 'ioredis';
+import { RedisModule, REDIS_CLIENT } from './redis/redis.module';
 import { BusinessModule } from './business/business.module';
 import { Business } from './business/entities/business.entity';
 import { ProductModule } from './product/product.module';
@@ -76,11 +79,22 @@ import { QueryFailedExceptionFilter } from './common/filters/query-failed.filter
       migrations: ['dist/migrations/*.js'],
       migrationsRun: process.env.NODE_ENV === 'production',
     }),
-    ThrottlerModule.forRoot([
-      { name: 'short', ttl: 1000, limit: 10 },
-      { name: 'medium', ttl: 60000, limit: 100 },
-      { name: 'long', ttl: 3600000, limit: 1000 },
-    ]),
+    RedisModule,
+    // Distributed rate limiting: counters live in Redis (shared client) so
+    // limits hold across all API replicas — in-memory storage would let each
+    // replica allow the full quota. Falls back to in-memory without Redis.
+    ThrottlerModule.forRootAsync({
+      imports: [RedisModule],
+      inject: [REDIS_CLIENT],
+      useFactory: (redis: Redis | null) => ({
+        throttlers: [
+          { name: 'short', ttl: 1000, limit: 10 },
+          { name: 'medium', ttl: 60000, limit: 100 },
+          { name: 'long', ttl: 3600000, limit: 1000 },
+        ],
+        storage: redis ? new ThrottlerStorageRedisService(redis) : undefined,
+      }),
+    }),
     BusinessModule,
     ProductModule,
     CategoryModule,

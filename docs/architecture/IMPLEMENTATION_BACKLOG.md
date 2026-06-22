@@ -74,12 +74,15 @@ tests pass; no service does ad-hoc ownership `where` checks.
 
 ---
 
-## Phase 5 — Redis platform  🔒 (needs provisioned Redis)
-- 🔒 Provision managed Redis (env: `REDIS_URL`); graceful-degrade if absent in dev.
-- 🔒 Distributed rate limiting (replace in-memory throttler storage).
-- 🔒 Cache-aside for hot reads (product detail, category tree, seller dashboard
-  aggregates) with event-based invalidation.
-- 🔒 Idempotency-Key middleware for checkout / payment intents.
+## Phase 5 — Redis platform  (provisioned)
+- ✅ Shared ioredis client (`RedisModule`, `REDIS_URL`) with graceful no-op
+  degradation when absent + clean shutdown (no leaked connection).
+- ✅ Distributed rate limiting — throttler counters in Redis (shared client) so
+  limits hold across replicas; in-memory fallback without Redis.
+- ✅ Cache-aside `CacheService` (null/error-safe) applied to the category tree
+  with invalidation on create; unit + runtime verified.
+- ⬜ Extend caching to product detail / seller dashboard aggregates.
+- ⬜ Idempotency-Key middleware for checkout / payment intents.
 
 ## Phase 6 — Async / BullMQ  🔒 (needs Redis; ADR-0003)
 - 🔒 BullMQ + separate worker deployment.

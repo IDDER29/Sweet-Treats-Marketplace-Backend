@@ -7,12 +7,16 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
 import { Category } from './entities/category.entity';
 import { CreateCategoryDto } from './dto/create-category.dto';
+import { CacheService } from '../redis/cache.service';
+
+const CATEGORIES_CACHE_KEY = 'categories:all';
 
 @Injectable()
 export class CategoryService {
   constructor(
     @InjectRepository(Category)
     private categoryRepository: Repository<Category>,
+    private readonly cache: CacheService,
   ) {}
 
   async create(dto: CreateCategoryDto): Promise<Category> {
@@ -33,7 +37,10 @@ export class CategoryService {
     }
 
     try {
-      return await this.categoryRepository.save(category);
+      const saved = await this.categoryRepository.save(category);
+      // Invalidate the cached tree so the new category appears immediately.
+      await this.cache.del(CATEGORIES_CACHE_KEY);
+      return saved;
     } catch (err) {
       // Postgres unique_violation on name/slug -> 409 instead of a raw 500.
       if (err instanceof QueryFailedError && (err as any).code === '23505') {
@@ -46,9 +53,10 @@ export class CategoryService {
   }
 
   async findAll(): Promise<Category[]> {
-    return this.categoryRepository.find({
-      relations: ['children'],
-    });
+    // Cache-aside: categories change rarely but are read on most catalog pages.
+    return this.cache.wrap(CATEGORIES_CACHE_KEY, 300, () =>
+      this.categoryRepository.find({ relations: ['children'] }),
+    );
   }
 
   async findBySlug(slug: string): Promise<Category> {
