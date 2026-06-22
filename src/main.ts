@@ -28,6 +28,13 @@ async function bootstrap() {
   );
 
   if (!process.env.JWT_SECRET) {
+    // In production, refuse to boot with the well-known fallback secret — it
+    // would let anyone forge admin tokens. In dev, warn but allow it.
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'JWT_SECRET must be set in production. Refusing to start with the insecure fallback secret.',
+      );
+    }
     console.warn(
       'WARNING: JWT_SECRET is not set. Using insecure fallback "mySecretKey". Set JWT_SECRET in production!',
     );

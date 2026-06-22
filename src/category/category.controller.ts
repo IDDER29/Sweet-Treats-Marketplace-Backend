@@ -10,6 +10,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { CategoryService } from './category.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { Category } from './entities/category.entity';
+import { RolesGuard } from '../admin/guards/roles.guard';
 
 @Controller('categories')
 export class CategoryController {
@@ -21,8 +22,8 @@ export class CategoryController {
     return this.categoryService.findAll();
   }
 
-  // Guarded: create a category (business-jwt until admin module exists)
-  @UseGuards(AuthGuard('business-jwt'))
+  // Admin-only: create a category
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Post()
   async create(@Body() createCategoryDto: CreateCategoryDto): Promise<Category> {
     return this.categoryService.create(createCategoryDto);

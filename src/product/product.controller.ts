@@ -63,15 +63,16 @@ export class ProductController {
   async update(
     @Param('id') id: string,
     @Body() updateProductDto: UpdateProductDto,
+    @Request() req,
   ): Promise<Product> {
-    return this.productService.update(id, updateProductDto);
+    return this.productService.update(id, updateProductDto, req.user.businessId);
   }
 
   // Delete a product
   @UseGuards(AuthGuard('business-jwt'))
   @Delete(':id')
-  async remove(@Param('id') id: string): Promise<void> {
-    return this.productService.remove(id);
+  async remove(@Param('id') id: string, @Request() req): Promise<void> {
+    return this.productService.remove(id, req.user.businessId);
   }
 
   // Update stock for a product (business-only)

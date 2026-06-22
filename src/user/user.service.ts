@@ -61,11 +61,22 @@ export class UsersService {
   }
 
   async getProfile(userId: string) {
-    return this.usersRepository.findOne({ where: { user_id: userId } });
+    const user = await this.usersRepository.findOne({
+      where: { user_id: userId },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    // Never expose the password hash to clients.
+    const { password, ...profile } = user;
+    return profile;
   }
 
   async updateProfile(userId: string, updateUserDto: UpdateUserDto) {
-    await this.usersRepository.update(userId, updateUserDto);
+    const result = await this.usersRepository.update(userId, updateUserDto);
+    if (result.affected === 0) {
+      throw new NotFoundException('User not found');
+    }
     return this.getProfile(userId);
   }
 
@@ -74,6 +85,9 @@ export class UsersService {
     const user = await this.usersRepository.findOne({
       where: { user_id: userId },
     });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
 
     const isPasswordMatch = await bcrypt.compare(oldPassword, user.password);
     if (!isPasswordMatch) {

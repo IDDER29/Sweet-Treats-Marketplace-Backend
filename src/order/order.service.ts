@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { Order, OrderStatus } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { Users } from '../entities/users.entity';
@@ -205,8 +205,13 @@ export class OrderService {
         }
 
         if (discount.type === DiscountType.PERCENTAGE) {
+          // Clamp to the subtotal so a misconfigured >100% code can never
+          // produce a discount larger than the order (negative total).
           discountAmount = Number(
-            ((itemsTotal * Number(discount.value)) / 100).toFixed(2),
+            Math.min(
+              (itemsTotal * Number(discount.value)) / 100,
+              itemsTotal,
+            ).toFixed(2),
           );
         } else {
           discountAmount = Math.min(Number(discount.value), itemsTotal);
@@ -277,19 +282,60 @@ export class OrderService {
   }
 
   async cancelOwnOrder(customerId: string, id: string) {
-    const order = await this.getOrderOrFail(id);
-    if (order.customer?.user_id !== customerId) {
-      throw new ForbiddenException('You do not have access to this order');
-    }
-    if (order.status !== OrderStatus.PENDING) {
-      throw new BadRequestException('Only pending orders can be cancelled');
-    }
-    order.status = OrderStatus.CANCELLED;
+    return this.dataSource.transaction(async (manager) => {
+      const order = await manager.findOne(Order, {
+        where: { id },
+        relations: ORDER_RELATIONS,
+      });
+      if (!order) {
+        throw new NotFoundException('Order not found');
+      }
+      if (order.customer?.user_id !== customerId) {
+        throw new ForbiddenException('You do not have access to this order');
+      }
+      if (order.status !== OrderStatus.PENDING) {
+        throw new BadRequestException('Only pending orders can be cancelled');
+      }
+      order.status = OrderStatus.CANCELLED;
+      await this.releaseOrderResources(manager, order);
+      const saved = await manager.save(Order, order);
+      return this.toResponse(saved);
+    });
+  }
 
-    // Restore stock for each tracked product
-    for (const item of order.items) {
+  // Cancel a (paid) order on behalf of a refund and release its held resources.
+  // Idempotent: a no-op if the order is already cancelled, so a retried refund
+  // never double-restores stock or discount usage. Called by PaymentService.
+  async cancelForRefund(orderId: string): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const order = await manager.findOne(Order, {
+        where: { id: orderId },
+        relations: ORDER_RELATIONS,
+      });
+      if (!order) {
+        throw new NotFoundException('Order not found');
+      }
+      if (order.status === OrderStatus.CANCELLED) {
+        return;
+      }
+      order.status = OrderStatus.CANCELLED;
+      await this.releaseOrderResources(manager, order);
+      await manager.save(Order, order);
+    });
+  }
+
+  // Restore the resources an order was holding: product stock, the booked
+  // delivery slot, and discount-code usage. Runs inside the caller's
+  // transaction. Callers must guard against being invoked twice for the same
+  // order (e.g. via a status check) to avoid double restoration.
+  private async releaseOrderResources(
+    manager: EntityManager,
+    order: Order,
+  ): Promise<void> {
+    for (const item of order.items || []) {
       if (item.product && item.product.trackStock) {
-        await this.productRepository.increment(
+        await manager.increment(
+          Product,
           { id: item.product.id },
           'stockQuantity',
           item.quantity,
@@ -297,18 +343,27 @@ export class OrderService {
       }
     }
 
-    // Release the delivery slot if one was booked
+    // Use decrement() (entity property path -> correct column) rather than raw
+    // SQL: the columns are camelCase ("bookedCount"/"usedCount") and would need
+    // exact quoting. The caller's idempotency guard ensures this runs at most
+    // once per order, so the counters cannot go below their checkout value.
     if (order.deliverySlotId) {
-      await this.deliverySlotRepository
-        .createQueryBuilder()
-        .update(DeliverySlot)
-        .set({ bookedCount: () => 'GREATEST(booked_count - 1, 0)' })
-        .where('id = :id', { id: order.deliverySlotId })
-        .execute();
+      await manager.decrement(
+        DeliverySlot,
+        { id: order.deliverySlotId },
+        'bookedCount',
+        1,
+      );
     }
 
-    const saved = await this.orderRepository.save(order);
-    return this.toResponse(saved);
+    if (order.discountCodeId) {
+      await manager.decrement(
+        DiscountCode,
+        { id: order.discountCodeId },
+        'usedCount',
+        1,
+      );
+    }
   }
 
   async findForBusiness(businessId: string, requestingBusinessId: string) {

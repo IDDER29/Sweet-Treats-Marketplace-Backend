@@ -11,6 +11,7 @@ import { Payment, PaymentStatus } from './entities/payment.entity';
 import { Order, OrderStatus } from '../order/entities/order.entity';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { RefundPaymentDto } from './dto/refund-payment.dto';
+import { OrderService } from '../order/order.service';
 
 @Injectable()
 export class PaymentService {
@@ -21,6 +22,7 @@ export class PaymentService {
     private readonly paymentRepository: Repository<Payment>,
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
+    private readonly orderService: OrderService,
   ) {
     // Falls back to a placeholder so the app can boot without Stripe configured
     // (dev-friendly, mirrors the JWT_SECRET fallback). Real payment calls will
@@ -163,9 +165,10 @@ export class PaymentService {
     payment.refundedAt = new Date();
     await this.paymentRepository.save(payment);
 
-    await this.orderRepository.update(order.id, {
-      status: OrderStatus.CANCELLED,
-    });
+    // Cancel the order and restore stock, the delivery slot, and discount usage
+    // (transactional + idempotent). Previously the refund only flipped the
+    // status, permanently leaking the reserved inventory and discount use.
+    await this.orderService.cancelForRefund(order.id);
 
     return { refundId: stripeRefund.id, status: 'refunded' };
   }

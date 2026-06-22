@@ -133,25 +133,38 @@ export class ProductService {
     return product;
   }
 
-  // Update a product
+  // Update a product owned by the given business
   async update(
     id: string,
     updateProductDto: UpdateProductDto,
+    businessId: string,
   ): Promise<Product> {
-    const product = await this.productRepository.findOne({ where: { id } });
+    const product = await this.productRepository.findOne({
+      where: { id },
+      relations: ['business'],
+    });
     if (!product) {
       throw new NotFoundException('Product not found');
+    }
+    if (product.business?.id !== businessId) {
+      throw new ForbiddenException('Not your product');
     }
 
     Object.assign(product, updateProductDto);
     return this.productRepository.save(product);
   }
 
-  // Remove a product by ID
-  async remove(id: string): Promise<void> {
-    const product = await this.productRepository.findOne({ where: { id } });
+  // Remove a product by ID, owned by the given business
+  async remove(id: string, businessId: string): Promise<void> {
+    const product = await this.productRepository.findOne({
+      where: { id },
+      relations: ['business'],
+    });
     if (!product) {
       throw new NotFoundException('Product not found');
+    }
+    if (product.business?.id !== businessId) {
+      throw new ForbiddenException('Not your product');
     }
 
     // Delete S3 images before removing the DB record

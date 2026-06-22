@@ -1,9 +1,15 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Review } from './entities/review.entity';
 import { Users } from '../entities/users.entity';
 import { Product } from '../product/entities/product.entity';
+import { Order, OrderStatus } from '../order/entities/order.entity';
 import { CreateReviewDto } from './dto/create-review.dto';
 
 @Injectable()
@@ -15,6 +21,8 @@ export class ReviewService {
     private readonly usersRepository: Repository<Users>,
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
+    @InjectRepository(Order)
+    private readonly orderRepository: Repository<Order>,
   ) {}
 
   async create(userId: string, productId: string, dto: CreateReviewDto) {
@@ -30,6 +38,33 @@ export class ReviewService {
     });
     if (!product) {
       throw new NotFoundException('Product not found');
+    }
+
+    // Verified purchase: the customer must have a paid (non-pending,
+    // non-cancelled) order containing this product.
+    const purchased = await this.orderRepository.findOne({
+      where: {
+        customer: { user_id: userId },
+        status: In([
+          OrderStatus.PAID,
+          OrderStatus.SHIPPED,
+          OrderStatus.DELIVERED,
+        ]),
+        items: { product: { id: productId } },
+      },
+    });
+    if (!purchased) {
+      throw new ForbiddenException(
+        'You can only review products you have purchased',
+      );
+    }
+
+    // One review per customer per product.
+    const existing = await this.reviewRepository.findOne({
+      where: { user: { user_id: userId }, product: { id: productId } },
+    });
+    if (existing) {
+      throw new ConflictException('You have already reviewed this product');
     }
 
     const review = this.reviewRepository.create({

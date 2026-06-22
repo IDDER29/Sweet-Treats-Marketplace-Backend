@@ -208,4 +208,59 @@ describe('Smoke / integration (e2e)', () => {
       expect(res.body.length).toBeGreaterThanOrEqual(1);
     });
   });
+
+  describe('Security regression guards', () => {
+    it('never returns the password hash on the profile', async () => {
+      const res = await request(http)
+        .get('/users/profile')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .expect(200);
+      expect(res.body.password).toBeUndefined();
+    });
+
+    it('forbids a business from editing another business product (IDOR)', async () => {
+      // Register a second business; it must not be able to touch the first
+      // business's product (productId, created in the commerce flow above).
+      const otherEmail = `e2e_biz2_${uniq}@test.com`;
+      await request(http)
+        .post('/business/register')
+        .send({
+          firstName: 'Other',
+          lastName: 'Owner',
+          businessName: `Other Bakery ${uniq}`,
+          email: otherEmail,
+          password,
+          businessType: 'bakery',
+          address: '2 Rival Rd',
+          phoneNumber: '555-0200',
+          agreeToTerms: true,
+        })
+        .expect(201);
+      const login = await request(http)
+        .post('/business/login')
+        .send({ email: otherEmail, password })
+        .expect(201);
+      const otherToken = login.body.token;
+
+      await request(http)
+        .put(`/products/${productId}`)
+        .set('Authorization', `Bearer ${otherToken}`)
+        .send({ price: 0.01 })
+        .expect(403);
+
+      await request(http)
+        .delete(`/products/${productId}`)
+        .set('Authorization', `Bearer ${otherToken}`)
+        .expect(403);
+    });
+
+    it('forbids reviewing a product the customer has not purchased', async () => {
+      // The customer's order is still PENDING (not a verified purchase).
+      await request(http)
+        .post(`/products/${productId}/reviews`)
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({ rating: 5, comment: 'Great' })
+        .expect(403);
+    });
+  });
 });

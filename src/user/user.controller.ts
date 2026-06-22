@@ -67,6 +67,7 @@ export class UsersController {
     return this.usersService.forgotPassword(dto.email);
   }
 
+  @Throttle({ short: { limit: 5, ttl: 60000 }, medium: { limit: 20, ttl: 3600000 } })
   @Post('reset-password')
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.usersService.resetPassword(dto.token, dto.newPassword);
