@@ -62,6 +62,9 @@ import { IdempotencyInterceptor } from './common/idempotency/idempotency.interce
           { name: 'long', ttl: 3600000, limit: 1000 },
         ],
         storage: redis ? new ThrottlerStorageRedisService(redis) : undefined,
+        // Skip rate limiting under the test runner so functional e2e suites
+        // (which make many logins) aren't throttled; prod/dev are unaffected.
+        skipIf: () => process.env.NODE_ENV === 'test',
       }),
     }),
     BusinessModule,
