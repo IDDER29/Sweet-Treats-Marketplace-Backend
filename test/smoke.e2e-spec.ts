@@ -424,6 +424,45 @@ describe('Smoke / integration (e2e)', () => {
       expect(await stockOf(tracked)).toBe(10);
     });
 
+    it('replays a repeated Idempotency-Key instead of double-checking-out', async () => {
+      const created = await request(http)
+        .post('/products')
+        .set('Authorization', `Bearer ${businessToken}`)
+        .send({
+          name: 'Idem Cake',
+          price: 10,
+          stockQuantity: 10,
+          trackStock: true,
+          category: 'cakes',
+        })
+        .expect(201);
+      const pid = created.body.id;
+      const idemKey = `idem-${uniq}`;
+      const body = { items: [{ productId: pid, quantity: 2 }] };
+
+      const first = await request(http)
+        .post('/orders')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .set('Idempotency-Key', idemKey)
+        .send(body)
+        .expect(201);
+
+      const replay = await request(http)
+        .post('/orders')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .set('Idempotency-Key', idemKey)
+        .send(body)
+        .expect(201);
+
+      // Same order replayed, and stock only decremented once (10 - 2 = 8).
+      expect(replay.body.id).toBe(first.body.id);
+      const stockRes = await request(http)
+        .get(`/products/${pid}/stock`)
+        .set('Authorization', `Bearer ${businessToken}`)
+        .expect(200);
+      expect(Number(stockRes.body.stockQuantity)).toBe(8);
+    });
+
     it('enforces a per-customer discount usage limit', async () => {
       const code = `ONCE${uniq}`;
       await request(http)

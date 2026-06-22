@@ -12,6 +12,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { OrderService } from './order.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { Idempotent } from '../common/idempotency/idempotent.decorator';
 
 @Controller('orders')
 export class OrderController {
@@ -20,6 +21,7 @@ export class OrderController {
   // --- Customer endpoints (JWT-protected, reuses UserModule's strategy) ---
 
   @UseGuards(AuthGuard('jwt'))
+  @Idempotent()
   @Post()
   checkout(@Request() req, @Body() createOrderDto: CreateOrderDto) {
     return this.orderService.checkout(req.user.userId, createOrderDto);

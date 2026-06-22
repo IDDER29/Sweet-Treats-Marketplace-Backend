@@ -42,7 +42,9 @@ import { AuditModule } from './audit/audit.module';
 import { AuditLog } from './audit/entities/audit-log.entity';
 import { ObservabilityModule } from './observability/observability.module';
 import { APP_FILTER } from '@nestjs/core';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { QueryFailedExceptionFilter } from './common/filters/query-failed.filter';
+import { IdempotencyInterceptor } from './common/idempotency/idempotency.interceptor';
 @Module({
   imports: [
     // Import ConfigModule to load environment variables
@@ -124,6 +126,10 @@ import { QueryFailedExceptionFilter } from './common/filters/query-failed.filter
     {
       provide: APP_FILTER,
       useClass: QueryFailedExceptionFilter,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: IdempotencyInterceptor,
     },
   ],
 })
