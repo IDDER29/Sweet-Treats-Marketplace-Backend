@@ -137,11 +137,14 @@ to 11, fix the wildcard route, run the full e2e suite, and smoke-test uploads
 and rate-limiting before merging.
 
 ### Tests & observability
-- No tests for `admin`, `analytics`, `upload`, `custom-order`, `category`, `mail`.
-  Extend the `test/smoke.e2e-spec.ts` harness (now also covers the security
-  regressions and is the template to follow).
-- The legacy unit specs under `src/**/*.spec.ts` are stale (wrong export names,
-  missing DTO fields) — fix or delete so `npm test` is meaningful.
+- ✅ `npm test` is now real and green — stale auto-generated specs were
+  replaced with proper `UsersService`/`BusinessService` unit tests (covering the
+  auth/security fixes) and the dead controller specs removed.
+- ✅ e2e now also covers commerce-fix regressions (cancel restores stock,
+  per-customer discount limit) on top of auth/RBAC/analytics/security. 44 tests
+  total (23 unit + 21 e2e).
+- Still no specs for `admin`, `analytics`, `upload`, `custom-order`, `category`,
+  `mail` — extend the `test/smoke.e2e-spec.ts` harness (the template to follow).
 - Add audit logging on admin actions and structured request logging.
 
 ---

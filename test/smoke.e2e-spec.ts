@@ -263,4 +263,72 @@ describe('Smoke / integration (e2e)', () => {
         .expect(403);
     });
   });
+
+  describe('Commerce fix regressions', () => {
+    const stockOf = async (id: string) => {
+      const res = await request(http)
+        .get(`/products/${id}/stock`)
+        .set('Authorization', `Bearer ${businessToken}`)
+        .expect(200);
+      return Number(res.body.stockQuantity);
+    };
+
+    it('restores stock when a pending order is cancelled', async () => {
+      const created = await request(http)
+        .post('/products')
+        .set('Authorization', `Bearer ${businessToken}`)
+        .send({
+          name: 'Tracked Cake',
+          price: 10,
+          stockQuantity: 10,
+          trackStock: true,
+          category: 'cakes',
+        })
+        .expect(201);
+      const tracked = created.body.id;
+      expect(await stockOf(tracked)).toBe(10);
+
+      const order = await request(http)
+        .post('/orders')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({ items: [{ productId: tracked, quantity: 3 }] })
+        .expect(201);
+      expect(await stockOf(tracked)).toBe(7);
+
+      await request(http)
+        .patch(`/orders/${order.body.id}/cancel`)
+        .set('Authorization', `Bearer ${customerToken}`)
+        .expect(200);
+      expect(await stockOf(tracked)).toBe(10);
+    });
+
+    it('enforces a per-customer discount usage limit', async () => {
+      const code = `ONCE${uniq}`;
+      await request(http)
+        .post(`/business/any/discounts`)
+        .set('Authorization', `Bearer ${businessToken}`)
+        .send({
+          code,
+          type: 'FIXED_AMOUNT',
+          value: 1,
+          maxUsesPerCustomer: 1,
+          validFrom: new Date(Date.now() - 1000).toISOString(),
+        })
+        .expect(201);
+
+      // First use succeeds...
+      await request(http)
+        .post('/orders')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({ items: [{ productId, quantity: 1 }], discountCode: code })
+        .expect(201);
+
+      // ...second use by the same customer is rejected.
+      await request(http)
+        .post('/orders')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({ items: [{ productId, quantity: 1 }], discountCode: code })
+        .expect(400);
+    });
+  });
 });
