@@ -14,6 +14,7 @@ import { Users } from '../entities/users.entity';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { MailService } from '../mail/mail.service';
+import { RefreshTokenService } from '../auth/refresh-token.service';
 
 @Injectable()
 export class UsersService {
@@ -22,11 +23,16 @@ export class UsersService {
     private usersRepository: Repository<Users>,
     private jwtService: JwtService,
     private mailService: MailService,
+    private readonly refreshTokens: RefreshTokenService,
   ) {}
+
+  private accessToken(user: Users): string {
+    return this.jwtService.sign({ userId: user.user_id, role: user.role });
+  }
 
   async register(createUserDto: CreateUserDto) {
     const { password, ...userData } = createUserDto;
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     const user = this.usersRepository.create({
       ...userData,
@@ -47,17 +53,40 @@ export class UsersService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const payload = { userId: user.user_id, role: user.role };
-    const token = this.jwtService.sign(payload);
+    const token = this.accessToken(user);
+    // Short-lived access token + a rotating, revocable refresh token (Redis).
+    const refreshToken = await this.refreshTokens.issue(user.user_id);
 
     return {
       token,
+      refreshToken: refreshToken ?? undefined,
       userId: user.user_id,
       first_name: user.first_name,
       last_name: user.last_name,
       email: user.email,
       role: user.role,
     };
+  }
+
+  // Exchange a valid refresh token for a new access token + rotated refresh
+  // token. The presented refresh token is single-use.
+  async refreshSession(refreshToken: string) {
+    const rotated = await this.refreshTokens.rotate(refreshToken);
+    if (!rotated) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+    const user = await this.usersRepository.findOne({
+      where: { user_id: rotated.userId },
+    });
+    if (!user) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+    return { token: this.accessToken(user), refreshToken: rotated.token };
+  }
+
+  async logout(refreshToken: string) {
+    await this.refreshTokens.revoke(refreshToken);
+    return { message: 'Logged out' };
   }
 
   async getProfile(userId: string) {
@@ -94,7 +123,7 @@ export class UsersService {
       throw new UnauthorizedException('Incorrect old password');
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
     user.password = hashedPassword;
     await this.usersRepository.save(user);
 
@@ -156,7 +185,7 @@ export class UsersService {
       throw new BadRequestException('Invalid or expired token');
     }
 
-    user.password = await bcrypt.hash(newPassword, 10);
+    user.password = await bcrypt.hash(newPassword, 12);
     await this.usersRepository.save(user);
 
     return { message: 'Password reset successfully' };

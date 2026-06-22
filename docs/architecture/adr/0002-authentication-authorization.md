@@ -63,7 +63,17 @@ model. Phased because the token changes need Redis and frontend coordination.
 
 ## Rollout
 
-1. **Now:** policy/ownership authorization layer; standardize bcrypt to 12; keep
-   existing tokens working.
-2. **With Redis:** RS256 access + rotating refresh; deprecate old tokens.
-3. **Growth:** MFA, social login, org/team memberships, API keys.
+1. ✅ **Done:** policy/ownership authorization layer (`assertOwnership`); bcrypt
+   standardized to 12; short-lived access token (15m) + single-use rotating
+   refresh tokens stored in Redis (`/auth/refresh`, `/auth/logout`).
+2. **Growth:** fold business auth into the unified identity/token model; MFA;
+   social login; org/team memberships; API keys.
+
+### Note on HS256 vs RS256 (refinement)
+
+For the **modular monolith**, the access token is signed and verified by the same
+process, so **HS256 with a strong secret + short TTL + revocable refresh** is the
+pragmatic choice (implemented). RS256's benefit — verifiers holding only the
+public key — matters once verification happens **outside** the signing service (an
+API gateway or extracted microservices). Adopt RS256 at that service-split point;
+until then it adds key-management overhead without security benefit.

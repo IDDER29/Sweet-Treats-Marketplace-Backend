@@ -146,6 +146,41 @@ describe('Smoke / integration (e2e)', () => {
       await request(http).get('/users/profile').expect(401);
     });
 
+    it('issues a refresh token, rotates it, and is single-use', async () => {
+      const email = `e2e_refresh_${uniq}@test.com`;
+      await request(http)
+        .post('/users/auth/register')
+        .send({ first_name: 'R', last_name: 'T', email, password })
+        .expect(201);
+      const login = await request(http)
+        .post('/users/auth/login')
+        .send({ email, password })
+        .expect(201);
+      const refreshToken = login.body.refreshToken;
+      expect(refreshToken).toBeDefined();
+
+      // Exchange the refresh token for a fresh pair.
+      const refreshed = await request(http)
+        .post('/users/auth/refresh')
+        .send({ refreshToken })
+        .expect(201);
+      expect(refreshed.body.token).toBeDefined();
+      expect(refreshed.body.refreshToken).toBeDefined();
+      expect(refreshed.body.refreshToken).not.toBe(refreshToken);
+
+      // The new access token works.
+      await request(http)
+        .get('/users/profile')
+        .set('Authorization', `Bearer ${refreshed.body.token}`)
+        .expect(200);
+
+      // The old refresh token is now single-use -> rejected.
+      await request(http)
+        .post('/users/auth/refresh')
+        .send({ refreshToken })
+        .expect(401);
+    });
+
     it('returns 400 (not 500) for a malformed id on a uuid route', async () => {
       // A non-uuid against a uuid column would otherwise be a raw DB 500.
       await request(http).get('/products/not-a-uuid').expect(400);

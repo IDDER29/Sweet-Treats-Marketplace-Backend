@@ -7,6 +7,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { MailModule } from '../mail/mail.module';
+import { RefreshTokenService } from '../auth/refresh-token.service';
 
 @Module({
   imports: [
@@ -15,13 +16,14 @@ import { MailModule } from '../mail/mail.module';
     JwtModule.registerAsync({
       useFactory: () => ({
         secret: process.env.JWT_SECRET || 'mySecretKey', // Use a strong secret in production!
-        signOptions: { expiresIn: '1h' },
+        // Short-lived access token; clients refresh via /auth/refresh.
+        signOptions: { expiresIn: process.env.JWT_ACCESS_TTL || '15m' },
       }),
     }),
     MailModule,
   ],
   controllers: [UsersController],
-  providers: [UsersService, JwtStrategy],
+  providers: [UsersService, JwtStrategy, RefreshTokenService],
   exports: [UsersService],
 })
 export class UserModule {} // Ensure this is UsersModule

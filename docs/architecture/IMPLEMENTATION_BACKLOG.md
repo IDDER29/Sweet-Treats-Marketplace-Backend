@@ -95,12 +95,16 @@ tests pass; no service does ad-hoc ownership `where` checks.
 - ⬜ Schedulers (discount/quote/slot expiry, stale-PENDING cleanup, rollups) with
   a Redis leader lock.
 
-## Phase 7 — Auth unification  🔒 (needs Redis + frontend coord; ADR-0002)
-- 🔒 Standardize bcrypt cost to 12 across user + business.
-- 🔒 RS256 access tokens (key in secrets manager, `kid` rotation).
-- 🔒 Rotating opaque refresh tokens in Redis + reuse-detection + `/auth/refresh`.
-- 🔒 Fold business auth into the unified identity/token model.
-- 🔒 MFA (TOTP) for admins.
+## Phase 7 — Auth hardening  (core done; ADR-0002)
+- ✅ bcrypt cost standardized to 12 (user + business).
+- ✅ Short-lived access token (15m) + single-use **rotating refresh tokens** in
+  Redis (`/users/auth/refresh`, `/users/auth/logout`); revocable; graceful
+  without Redis. e2e verifies rotation + single-use rejection.
+- 🔁 RS256 — deferred by design: HS256 + short TTL + refresh is correct for the
+  monolith; adopt RS256 at the gateway/service-split (ADR-0002 note).
+- ⬜ Reuse-detection (revoke the whole family on a replayed refresh token).
+- ⬜ Fold business auth into the unified identity/token model.
+- ⬜ MFA (TOTP) for admins.
 
 ## Phase 8 — Scale & performance  🔒
 - 🔒 PgBouncer (transaction pooling) before scaling API replicas.

@@ -10,6 +10,7 @@ import * as bcrypt from 'bcrypt';
 import { UsersService } from './user.service';
 import { Users } from '../entities/users.entity';
 import { MailService } from '../mail/mail.service';
+import { RefreshTokenService } from '../auth/refresh-token.service';
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -22,6 +23,7 @@ describe('UsersService', () => {
   };
   let jwt: { sign: jest.Mock; decode: jest.Mock; verify: jest.Mock };
   let mail: { sendPasswordReset: jest.Mock };
+  let refreshTokens: { issue: jest.Mock; rotate: jest.Mock; revoke: jest.Mock };
 
   beforeEach(async () => {
     repo = {
@@ -37,6 +39,11 @@ describe('UsersService', () => {
       verify: jest.fn(),
     };
     mail = { sendPasswordReset: jest.fn() };
+    refreshTokens = {
+      issue: jest.fn().mockResolvedValue('refresh-token-xyz'),
+      rotate: jest.fn(),
+      revoke: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -44,6 +51,7 @@ describe('UsersService', () => {
         { provide: getRepositoryToken(Users), useValue: repo },
         { provide: JwtService, useValue: jwt },
         { provide: MailService, useValue: mail },
+        { provide: RefreshTokenService, useValue: refreshTokens },
       ],
     }).compile();
 
@@ -95,6 +103,38 @@ describe('UsersService', () => {
       await expect(
         service.login({ email: 'a@b.com', password: 'wrong' } as any),
       ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+  });
+
+  describe('refresh tokens', () => {
+    it('login issues an access token and a refresh token', async () => {
+      repo.findOne.mockResolvedValue({
+        user_id: 'u1',
+        email: 'a@b.com',
+        password: await bcrypt.hash('pw', 12),
+        role: 'USER',
+      });
+      const res: any = await service.login({
+        email: 'a@b.com',
+        password: 'pw',
+      } as any);
+      expect(res.token).toBe('signed.jwt.token');
+      expect(res.refreshToken).toBe('refresh-token-xyz');
+    });
+
+    it('refreshSession rotates and returns a new pair', async () => {
+      refreshTokens.rotate.mockResolvedValue({ userId: 'u1', token: 'next' });
+      repo.findOne.mockResolvedValue({ user_id: 'u1', role: 'USER' });
+      const res = await service.refreshSession('old');
+      expect(res.token).toBe('signed.jwt.token');
+      expect(res.refreshToken).toBe('next');
+    });
+
+    it('refreshSession rejects an unknown/expired refresh token', async () => {
+      refreshTokens.rotate.mockResolvedValue(null);
+      await expect(service.refreshSession('bad')).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
     });
   });
 

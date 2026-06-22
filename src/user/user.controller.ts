@@ -16,6 +16,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { AuthGuard } from '@nestjs/passport'; // JWT Auth Guard
 import { Throttle } from '@nestjs/throttler';
 
@@ -32,6 +33,17 @@ export class UsersController {
   @Post('auth/login')
   async login(@Body() loginUserDto: LoginUserDto) {
     return this.usersService.login(loginUserDto);
+  }
+
+  @Throttle({ short: { limit: 10, ttl: 60000 } })
+  @Post('auth/refresh')
+  async refresh(@Body() dto: RefreshTokenDto) {
+    return this.usersService.refreshSession(dto.refreshToken);
+  }
+
+  @Post('auth/logout')
+  async logout(@Body() dto: RefreshTokenDto) {
+    return this.usersService.logout(dto.refreshToken);
   }
 
   @UseGuards(AuthGuard('jwt'))
