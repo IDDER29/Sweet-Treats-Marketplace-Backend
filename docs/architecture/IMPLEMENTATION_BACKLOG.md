@@ -112,7 +112,20 @@ tests pass; no service does ad-hoc ownership `where` checks.
 - 🔒 CDN + Cloudflare R2 (presigned uploads, on-the-fly resize).
 - 🔒 Postgres FTS (`tsvector` + `pg_trgm`) → Meilisearch at scale.
 
-## Phase 9 — Platform & DevOps  🔒
+## Phase 9 — Platform & DevOps  (containerization done; cloud infra 🔒)
+- ✅ Multi-stage `Dockerfile` (`node:20-slim`): builder compiles TS → `dist`,
+  prunes to prod deps; runtime is non-root (`appuser`), `dumb-init` PID 1,
+  container `HEALTHCHECK` on `/health/ready`. Verified end-to-end: image builds,
+  boots in `NODE_ENV=production`, runs the full 5-migration chain against a fresh
+  DB, serves `/health/*` + `/metrics`; the worker entrypoint (`node dist/worker`)
+  boots and processes queues. Optional `--secret id=npm_ca` supports building
+  behind a TLS-inspecting egress proxy without baking certs into the image.
+- ✅ `docker-compose.yml` dev stack with prod parity: postgres, redis, mailhog
+  (SMTP), minio (S3), API (`PROCESS_QUEUES=false`) + dedicated worker
+  (`PROCESS_QUEUES=true`) from the same image.
+- ✅ GitHub Actions CI (`.github/workflows/ci.yml`): postgres+redis services,
+  `lint → build → test → test:e2e`, plus a gated image-build job (buildx, GHA
+  cache).
 - 🔒 Terraform IaC; Fargate/Cloud Run; blue-green + auto-rollback; pre-deploy
   migration with snapshot; multi-AZ; tested DR/restore.
 - 🔒 Sentry/metrics/tracing wired to alerting (SLO-based).
