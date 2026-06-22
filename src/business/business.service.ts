@@ -11,6 +11,7 @@ import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { Business } from './entities/business.entity';
+import { RefreshTokenService } from '../auth/refresh-token.service';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -21,6 +22,7 @@ export class BusinessService {
     @InjectRepository(Business)
     private readonly businessRepository: Repository<Business>,
     private readonly jwtService: JwtService,
+    private readonly refreshTokens: RefreshTokenService,
   ) {}
 
   async create(
@@ -114,7 +116,12 @@ export class BusinessService {
   async login(
     email: string,
     password: string,
-  ): Promise<{ message: string; token: string; business: Partial<Business> }> {
+  ): Promise<{
+    message: string;
+    token: string;
+    refreshToken?: string;
+    business: Partial<Business>;
+  }> {
     const business = await this.businessRepository.findOne({
       where: { email },
     });
@@ -139,18 +146,56 @@ export class BusinessService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const token = this.jwtService.sign({
-      businessId: business.id,
-      role: 'BUSINESS',
-    });
+    const token = this.signAccessToken(business.id);
+    // Same model as user auth: short-lived access token + rotating refresh token.
+    const refreshToken = await this.refreshTokens.issue(
+      business.id,
+      'business',
+    );
 
-    const { id, firstName, lastName, businessName, email: businessEmail } = business;
+    const {
+      id,
+      firstName,
+      lastName,
+      businessName,
+      email: businessEmail,
+    } = business;
 
     return {
       message: 'Login successful',
       token,
+      refreshToken: refreshToken ?? undefined,
       business: { id, firstName, lastName, businessName, email: businessEmail },
     };
+  }
+
+  // Exchange a valid business refresh token for a new access + refresh pair.
+  // The refresh token is single-use and kind-checked so a user token can't be
+  // redeemed here.
+  async refreshSession(refreshToken: string) {
+    const rotated = await this.refreshTokens.rotate(refreshToken, 'business');
+    if (!rotated) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+    const business = await this.businessRepository.findOne({
+      where: { id: rotated.userId },
+    });
+    if (!business) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+    return {
+      token: this.signAccessToken(business.id),
+      refreshToken: rotated.token,
+    };
+  }
+
+  async logout(refreshToken: string) {
+    await this.refreshTokens.revoke(refreshToken);
+    return { message: 'Logged out' };
+  }
+
+  private signAccessToken(businessId: string): string {
+    return this.jwtService.sign({ businessId, role: 'BUSINESS' });
   }
 
   private isUUID(id: string): boolean {

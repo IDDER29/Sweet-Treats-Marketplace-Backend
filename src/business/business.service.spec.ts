@@ -10,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { BusinessService } from './business.service';
 import { Business } from './entities/business.entity';
+import { RefreshTokenService } from '../auth/refresh-token.service';
 
 const baseDto = {
   firstName: 'Sweet',
@@ -27,6 +28,11 @@ describe('BusinessService', () => {
   let service: BusinessService;
   let repo: { findOne: jest.Mock; create: jest.Mock; save: jest.Mock };
   let jwt: { sign: jest.Mock };
+  let refreshTokens: {
+    issue: jest.Mock;
+    rotate: jest.Mock;
+    revoke: jest.Mock;
+  };
 
   beforeEach(async () => {
     repo = {
@@ -35,12 +41,18 @@ describe('BusinessService', () => {
       save: jest.fn((x) => Promise.resolve({ id: 'b1', ...x })),
     };
     jwt = { sign: jest.fn(() => 'biz.jwt.token') };
+    refreshTokens = {
+      issue: jest.fn().mockResolvedValue('biz-refresh-token'),
+      rotate: jest.fn(),
+      revoke: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BusinessService,
         { provide: getRepositoryToken(Business), useValue: repo },
         { provide: JwtService, useValue: jwt },
+        { provide: RefreshTokenService, useValue: refreshTokens },
       ],
     }).compile();
 
@@ -60,9 +72,9 @@ describe('BusinessService', () => {
 
     it('throws Conflict when the email already exists', async () => {
       repo.findOne.mockResolvedValue({ id: 'existing' });
-      await expect(service.create({ ...baseDto } as any)).rejects.toBeInstanceOf(
-        ConflictException,
-      );
+      await expect(
+        service.create({ ...baseDto } as any),
+      ).rejects.toBeInstanceOf(ConflictException);
     });
 
     it('throws BadRequest when terms are not agreed', async () => {
@@ -86,6 +98,8 @@ describe('BusinessService', () => {
       });
       const res = await service.login('biz@test.com', 'password123');
       expect(res.token).toBe('biz.jwt.token');
+      expect(res.refreshToken).toBe('biz-refresh-token');
+      expect(refreshTokens.issue).toHaveBeenCalledWith('b1', 'business');
       expect((res.business as any).password).toBeUndefined();
     });
 
@@ -101,9 +115,48 @@ describe('BusinessService', () => {
         id: 'b1',
         password: await bcrypt.hash('right', 12),
       });
-      await expect(service.login('biz@test.com', 'wrong')).rejects.toBeInstanceOf(
+      await expect(
+        service.login('biz@test.com', 'wrong'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+  });
+
+  describe('refresh tokens', () => {
+    it('refreshSession rotates and returns a new pair', async () => {
+      refreshTokens.rotate.mockResolvedValue({
+        userId: 'b1',
+        kind: 'business',
+        token: 'next-refresh',
+      });
+      repo.findOne.mockResolvedValue({ id: 'b1' });
+      const res = await service.refreshSession('old');
+      expect(res.token).toBe('biz.jwt.token');
+      expect(res.refreshToken).toBe('next-refresh');
+    });
+
+    it('enforces the business kind when rotating (cross-kind rejected)', async () => {
+      // The service asks rotate to enforce kind 'business'; a non-business token
+      // resolves to null and is rejected.
+      refreshTokens.rotate.mockResolvedValue(null);
+      await expect(service.refreshSession('user-token')).rejects.toBeInstanceOf(
         UnauthorizedException,
       );
+      expect(refreshTokens.rotate).toHaveBeenCalledWith(
+        'user-token',
+        'business',
+      );
+    });
+
+    it('rejects an unknown/expired refresh token', async () => {
+      refreshTokens.rotate.mockResolvedValue(null);
+      await expect(service.refreshSession('bad')).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+    });
+
+    it('logout revokes the token', async () => {
+      await service.logout('some-token');
+      expect(refreshTokens.revoke).toHaveBeenCalledWith('some-token');
     });
   });
 

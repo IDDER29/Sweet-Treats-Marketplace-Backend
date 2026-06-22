@@ -123,7 +123,11 @@ describe('UsersService', () => {
     });
 
     it('refreshSession rotates and returns a new pair', async () => {
-      refreshTokens.rotate.mockResolvedValue({ userId: 'u1', token: 'next' });
+      refreshTokens.rotate.mockResolvedValue({
+        userId: 'u1',
+        kind: 'user',
+        token: 'next',
+      });
       repo.findOne.mockResolvedValue({ user_id: 'u1', role: 'USER' });
       const res = await service.refreshSession('old');
       expect(res.token).toBe('signed.jwt.token');
@@ -207,9 +211,9 @@ describe('UsersService', () => {
   describe('resetPassword (single-use, hash-bound)', () => {
     it('rejects a token whose purpose is not password-reset', async () => {
       jwt.decode.mockReturnValue({ userId: 'u1', purpose: 'login' });
-      await expect(service.resetPassword('tok', 'newpw')).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
+      await expect(
+        service.resetPassword('tok', 'newpw'),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('rejects when verification fails (e.g. token already used)', async () => {
@@ -218,9 +222,9 @@ describe('UsersService', () => {
       jwt.verify.mockImplementation(() => {
         throw new Error('invalid signature');
       });
-      await expect(service.resetPassword('tok', 'newpw')).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
+      await expect(
+        service.resetPassword('tok', 'newpw'),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('resets the password when the token verifies', async () => {

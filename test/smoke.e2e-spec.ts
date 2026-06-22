@@ -31,6 +31,7 @@ describe('Smoke / integration (e2e)', () => {
 
   let customerToken: string;
   let businessToken: string;
+  let businessRefreshToken: string;
   let productId: string;
 
   beforeAll(async () => {
@@ -210,7 +211,12 @@ describe('Smoke / integration (e2e)', () => {
       const adminEmail = `e2e_admin_${uniq}@test.com`;
       await request(http)
         .post('/users/auth/register')
-        .send({ first_name: 'Ad', last_name: 'Min', email: adminEmail, password })
+        .send({
+          first_name: 'Ad',
+          last_name: 'Min',
+          email: adminEmail,
+          password,
+        })
         .expect(201);
       const usersRepo: Repository<Users> = app.get(getRepositoryToken(Users));
       await usersRepo.update({ email: adminEmail }, { role: 'ADMIN' as any });
@@ -274,13 +280,37 @@ describe('Smoke / integration (e2e)', () => {
         .expect(201);
     });
 
-    it('logs in the business and issues a token', async () => {
+    it('logs in the business and issues a token + refresh token', async () => {
       const res = await request(http)
         .post('/business/login')
         .send({ email: businessEmail, password })
         .expect(201);
       expect(res.body.token).toBeDefined();
+      expect(res.body.refreshToken).toBeDefined();
       businessToken = res.body.token;
+      businessRefreshToken = res.body.refreshToken;
+    });
+
+    it('rotates the business refresh token (single-use, kind-checked)', async () => {
+      const refreshed = await request(http)
+        .post('/business/auth/refresh')
+        .send({ refreshToken: businessRefreshToken })
+        .expect(201);
+      expect(refreshed.body.token).toBeDefined();
+      expect(refreshed.body.refreshToken).toBeDefined();
+      expect(refreshed.body.refreshToken).not.toBe(businessRefreshToken);
+
+      // A business refresh token must not be redeemable at the user endpoint.
+      await request(http)
+        .post('/users/auth/refresh')
+        .send({ refreshToken: refreshed.body.refreshToken })
+        .expect(401);
+
+      // The original (now rotated) business token is single-use -> rejected.
+      await request(http)
+        .post('/business/auth/refresh')
+        .send({ refreshToken: businessRefreshToken })
+        .expect(401);
     });
 
     it('serves analytics to an authenticated business', async () => {

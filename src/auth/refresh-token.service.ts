@@ -46,21 +46,35 @@ export class RefreshTokenService {
     return `rt:fam:${familyId}:members`;
   }
 
-  /** Start a new family (fresh login) and mint its first token. */
-  async issue(userId: string): Promise<string | null> {
-    return this.issueInFamily(userId, randomBytes(16).toString('hex'));
+  /**
+   * Start a new family (fresh login) and mint its first token. `kind` namespaces
+   * the principal ('user' | 'business') so a token minted for one identity type
+   * can't be redeemed at the other's refresh endpoint.
+   */
+  async issue(principalId: string, kind = 'user'): Promise<string | null> {
+    return this.issueInFamily(
+      principalId,
+      randomBytes(16).toString('hex'),
+      kind,
+    );
   }
 
   private async issueInFamily(
-    userId: string,
+    principalId: string,
     familyId: string,
+    kind: string,
   ): Promise<string | null> {
     if (!this.redis) return null;
     const token = randomBytes(32).toString('hex');
     await this.redis
       .multi()
-      .set(this.tokenKey(token), `${userId}|${familyId}|active`, 'EX', this.ttlSeconds)
-      .set(this.familyKey(familyId), userId, 'EX', this.ttlSeconds)
+      .set(
+        this.tokenKey(token),
+        `${kind}:${principalId}|${familyId}|active`,
+        'EX',
+        this.ttlSeconds,
+      )
+      .set(this.familyKey(familyId), principalId, 'EX', this.ttlSeconds)
       .sadd(this.familyMembersKey(familyId), token)
       .expire(this.familyMembersKey(familyId), this.ttlSeconds)
       .exec();
@@ -68,14 +82,21 @@ export class RefreshTokenService {
   }
 
   /**
-   * Atomically inspect a token and, if it is `active`, flip it to `used` in one
-   * step (so two concurrent rotations can't both succeed). Returns a status code
-   * plus the stored value:
-   *   0 = unknown/expired, 1 = was active (now used), 2 = replay (already used).
+   * Atomically inspect a token and, if it is `active` and of the expected kind,
+   * flip it to `used` in one step (so two concurrent rotations can't both
+   * succeed). Returns a status code plus the stored value:
+   *   0 = unknown/expired, 1 = was active (now used), 2 = replay (already used),
+   *   3 = wrong kind (NOT consumed — a token sent to the wrong endpoint is left
+   *       intact so the legitimate owner can still use it correctly).
+   * ARGV[2] is the expected kind, or '' to skip the check.
    */
   private static readonly ROTATE_LUA = `
     local v = redis.call('GET', KEYS[1])
     if not v then return {0, ''} end
+    if ARGV[2] ~= '' then
+      local kind = string.match(v, '^(.-):')
+      if kind ~= ARGV[2] then return {3, v} end
+    end
     if string.match(v, '|used$') then return {2, v} end
     local ttl = redis.call('TTL', KEYS[1])
     if ttl < 0 then ttl = tonumber(ARGV[1]) end
@@ -86,7 +107,8 @@ export class RefreshTokenService {
 
   async rotate(
     token: string,
-  ): Promise<{ userId: string; token: string } | null> {
+    expectedKind = '',
+  ): Promise<{ userId: string; kind: string; token: string } | null> {
     if (!this.redis || !token) return null;
 
     const [code, value] = (await this.redis.eval(
@@ -94,11 +116,15 @@ export class RefreshTokenService {
       1,
       this.tokenKey(token),
       String(this.ttlSeconds),
+      expectedKind,
     )) as [number, string];
 
-    if (code === 0) return null; // unknown or expired
+    if (code === 0 || code === 3) return null; // unknown/expired, or wrong kind
 
-    const [userId, familyId] = value.split('|');
+    const [head, familyId] = value.split('|');
+    const sep = head.indexOf(':');
+    const kind = head.slice(0, sep);
+    const principalId = head.slice(sep + 1);
 
     if (code === 2) {
       // A token that was already rotated is being presented again: treat as a
@@ -116,8 +142,8 @@ export class RefreshTokenService {
     const familyAlive = await this.redis.exists(this.familyKey(familyId));
     if (!familyAlive) return null;
 
-    const next = await this.issueInFamily(userId, familyId);
-    return next ? { userId, token: next } : null;
+    const next = await this.issueInFamily(principalId, familyId, kind);
+    return next ? { userId: principalId, kind, token: next } : null;
   }
 
   /** Logout: revoke the entire family this token belongs to. */

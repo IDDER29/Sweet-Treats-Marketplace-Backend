@@ -12,6 +12,7 @@ import {
 import { BusinessService } from './business.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { LoginBusinessDto } from './dto/login-business.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 
 @Controller('business')
 export class BusinessController {
@@ -37,7 +38,7 @@ export class BusinessController {
         throw new NotFoundException('Business not found');
       }
       return business;
-    } catch (error) {
+    } catch {
       throw new NotFoundException('Business not found');
     }
   }
@@ -50,7 +51,7 @@ export class BusinessController {
         throw new NotFoundException('Business not found');
       }
       return business;
-    } catch (error) {
+    } catch {
       throw new NotFoundException('Business not found');
     }
   }
@@ -68,5 +69,15 @@ export class BusinessController {
       }
       throw new NotFoundException('Business not found');
     }
+  }
+
+  @Post('auth/refresh')
+  async refresh(@Body() dto: RefreshTokenDto) {
+    return this.businessService.refreshSession(dto.refreshToken);
+  }
+
+  @Post('auth/logout')
+  async logout(@Body() dto: RefreshTokenDto) {
+    return this.businessService.logout(dto.refreshToken);
   }
 }

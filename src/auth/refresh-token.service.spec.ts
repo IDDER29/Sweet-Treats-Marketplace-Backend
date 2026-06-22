@@ -43,6 +43,7 @@ describe('RefreshTokenService (reuse-detection)', () => {
     const r1 = await s.rotate(t1!);
     expect(r1).not.toBeNull();
     expect(r1!.userId).toBe('user-1');
+    expect(r1!.kind).toBe('user');
     expect(r1!.token).not.toBe(t1);
 
     // The original is now single-use -> rejected.
@@ -79,6 +80,27 @@ describe('RefreshTokenService (reuse-detection)', () => {
     if (!reachable) return;
     const s = svc();
     expect(await s.rotate('deadbeef-not-a-real-token')).toBeNull();
+  });
+
+  it('carries the principal kind through rotation (user vs business)', async () => {
+    if (!reachable) return;
+    const s = svc();
+    const bizToken = await s.issue('biz-1', 'business');
+    const rotated = await s.rotate(bizToken!, 'business');
+    expect(rotated!.kind).toBe('business');
+    expect(rotated!.userId).toBe('biz-1');
+  });
+
+  it('rejects a token at the wrong-kind endpoint WITHOUT consuming it', async () => {
+    if (!reachable) return;
+    const s = svc();
+    const bizToken = await s.issue('biz-2', 'business');
+    // Presented at a 'user' endpoint -> rejected.
+    expect(await s.rotate(bizToken!, 'user')).toBeNull();
+    // ...but the token is untouched, so it still works at the right endpoint.
+    const ok = await s.rotate(bizToken!, 'business');
+    expect(ok).not.toBeNull();
+    expect(ok!.kind).toBe('business');
   });
 
   it('degrades gracefully without Redis', async () => {

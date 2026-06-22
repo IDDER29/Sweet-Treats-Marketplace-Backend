@@ -6,6 +6,7 @@ import { BusinessService } from './business.service';
 import { BusinessController } from './business.controller';
 import { Business } from './entities/business.entity';
 import { BusinessJwtStrategy } from './strategies/business-jwt.strategy';
+import { RefreshTokenService } from '../auth/refresh-token.service';
 
 @Module({
   imports: [
@@ -14,11 +15,12 @@ import { BusinessJwtStrategy } from './strategies/business-jwt.strategy';
     JwtModule.registerAsync({
       useFactory: () => ({
         secret: process.env.JWT_SECRET || 'mySecretKey',
-        signOptions: { expiresIn: '7d' },
+        // Short-lived access token; clients refresh via /business/auth/refresh.
+        signOptions: { expiresIn: '15m' },
       }),
     }),
   ],
-  providers: [BusinessService, BusinessJwtStrategy],
+  providers: [BusinessService, BusinessJwtStrategy, RefreshTokenService],
   controllers: [BusinessController],
 })
 export class BusinessModule {}

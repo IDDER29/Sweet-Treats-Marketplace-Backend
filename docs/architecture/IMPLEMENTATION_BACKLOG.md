@@ -106,7 +106,12 @@ tests pass; no service does ad-hoc ownership `where` checks.
   token `used` (kept, not deleted), and replaying a used token burns the whole
   family (atomic `active→used` flip via Lua). Verified against live Redis (unit)
   and through HTTP (e2e: the valid rotated token dies once the family is burned).
-- ⬜ Fold business auth into the unified identity/token model.
+- ✅ Business auth at parity with users: short-lived access token (15m) +
+  rotating refresh token (`/business/auth/refresh`, `/business/auth/logout`).
+  Refresh tokens are principal-`kind` namespaced ('user' vs 'business') and the
+  kind is enforced *inside* the atomic rotate (a token sent to the wrong
+  endpoint is rejected **without** being consumed). e2e covers business rotation
+  + cross-kind rejection.
 - ⬜ MFA (TOTP) for admins.
 
 ## Phase 8 — Scale & performance  🔒

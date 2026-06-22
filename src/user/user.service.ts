@@ -55,7 +55,7 @@ export class UsersService {
 
     const token = this.accessToken(user);
     // Short-lived access token + a rotating, revocable refresh token (Redis).
-    const refreshToken = await this.refreshTokens.issue(user.user_id);
+    const refreshToken = await this.refreshTokens.issue(user.user_id, 'user');
 
     return {
       token,
@@ -71,7 +71,7 @@ export class UsersService {
   // Exchange a valid refresh token for a new access token + rotated refresh
   // token. The presented refresh token is single-use.
   async refreshSession(refreshToken: string) {
-    const rotated = await this.refreshTokens.rotate(refreshToken);
+    const rotated = await this.refreshTokens.rotate(refreshToken, 'user');
     if (!rotated) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
