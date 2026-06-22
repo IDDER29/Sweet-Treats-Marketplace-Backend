@@ -7,6 +7,7 @@ import {
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { authenticator } from 'otplib';
 import { UsersService } from './user.service';
 import { Users } from '../entities/users.entity';
 import { MailService } from '../mail/mail.service';
@@ -20,6 +21,7 @@ describe('UsersService', () => {
     findOne: jest.Mock;
     update: jest.Mock;
     softDelete: jest.Mock;
+    createQueryBuilder: jest.Mock;
   };
   let jwt: { sign: jest.Mock; decode: jest.Mock; verify: jest.Mock };
   let mail: { sendPasswordReset: jest.Mock };
@@ -32,6 +34,7 @@ describe('UsersService', () => {
       findOne: jest.fn(),
       update: jest.fn(),
       softDelete: jest.fn(),
+      createQueryBuilder: jest.fn(),
     };
     jwt = {
       sign: jest.fn(() => 'signed.jwt.token'),
@@ -139,6 +142,102 @@ describe('UsersService', () => {
       await expect(service.refreshSession('bad')).rejects.toBeInstanceOf(
         UnauthorizedException,
       );
+    });
+  });
+
+  describe('MFA (TOTP)', () => {
+    // Stub for getMfaSecret()'s QueryBuilder: createQueryBuilder().select().where().getRawOne()
+    const qbRaw = (raw: any) => {
+      const qb: any = {
+        select: () => qb,
+        where: () => qb,
+        getRawOne: () => Promise.resolve(raw),
+      };
+      return qb;
+    };
+
+    it('enrollMfa mints a secret + otpauth URL without enabling yet', async () => {
+      repo.findOne.mockResolvedValue({
+        user_id: 'u1',
+        email: 'a@b.com',
+        mfa_enabled: false,
+      });
+      const res: any = await service.enrollMfa('u1');
+      expect(res.otpauthUrl).toMatch(/^otpauth:\/\/totp\//);
+      expect(res.secret).toBeTruthy();
+      expect(repo.update).toHaveBeenCalledWith('u1', {
+        mfa_secret: res.secret,
+      });
+    });
+
+    it('enrollMfa rejects when MFA is already enabled', async () => {
+      repo.findOne.mockResolvedValue({ user_id: 'u1', mfa_enabled: true });
+      await expect(service.enrollMfa('u1')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('activateMfa enables MFA for a valid code', async () => {
+      const secret = authenticator.generateSecret();
+      repo.createQueryBuilder.mockReturnValue(qbRaw({ mfa_secret: secret }));
+      await service.activateMfa('u1', authenticator.generate(secret));
+      expect(repo.update).toHaveBeenCalledWith('u1', { mfa_enabled: true });
+    });
+
+    it('activateMfa rejects an invalid code', async () => {
+      const secret = authenticator.generateSecret();
+      repo.createQueryBuilder.mockReturnValue(qbRaw({ mfa_secret: secret }));
+      await expect(service.activateMfa('u1', '000000')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('login demands a TOTP code when MFA is enabled', async () => {
+      repo.findOne.mockResolvedValue({
+        user_id: 'u1',
+        password: await bcrypt.hash('pw', 10),
+        role: 'USER',
+        mfa_enabled: true,
+      });
+      await expect(
+        service.login({ email: 'a@b.com', password: 'pw' } as any),
+      ).rejects.toThrow('MFA code required');
+    });
+
+    it('login rejects an invalid TOTP code', async () => {
+      const secret = authenticator.generateSecret();
+      repo.findOne.mockResolvedValue({
+        user_id: 'u1',
+        password: await bcrypt.hash('pw', 10),
+        role: 'USER',
+        mfa_enabled: true,
+      });
+      repo.createQueryBuilder.mockReturnValue(qbRaw({ mfa_secret: secret }));
+      await expect(
+        service.login({
+          email: 'a@b.com',
+          password: 'pw',
+          totpCode: '000000',
+        } as any),
+      ).rejects.toThrow('Invalid MFA code');
+    });
+
+    it('login succeeds with a valid TOTP code', async () => {
+      const secret = authenticator.generateSecret();
+      repo.findOne.mockResolvedValue({
+        user_id: 'u1',
+        email: 'a@b.com',
+        password: await bcrypt.hash('pw', 10),
+        role: 'USER',
+        mfa_enabled: true,
+      });
+      repo.createQueryBuilder.mockReturnValue(qbRaw({ mfa_secret: secret }));
+      const res: any = await service.login({
+        email: 'a@b.com',
+        password: 'pw',
+        totpCode: authenticator.generate(secret),
+      } as any);
+      expect(res.token).toBe('signed.jwt.token');
     });
   });
 

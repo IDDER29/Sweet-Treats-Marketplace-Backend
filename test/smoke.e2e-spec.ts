@@ -3,6 +3,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import request from 'supertest';
+import { authenticator } from 'otplib';
 import { AppModule } from './../src/app.module';
 import { Users } from './../src/entities/users.entity';
 
@@ -201,6 +202,70 @@ describe('Smoke / integration (e2e)', () => {
         .get('/admin/dashboard')
         .set('Authorization', `Bearer ${customerToken}`)
         .expect(403);
+    });
+  });
+
+  describe('MFA (TOTP)', () => {
+    it('enrolls, activates, then enforces the second factor at login', async () => {
+      const email = `e2e_mfa_${uniq}@test.com`;
+      await request(http)
+        .post('/users/auth/register')
+        .send({ first_name: 'M', last_name: 'F', email, password })
+        .expect(201);
+      const login = await request(http)
+        .post('/users/auth/login')
+        .send({ email, password })
+        .expect(201);
+      const token = login.body.token;
+
+      // Enroll -> get the shared secret.
+      const enroll = await request(http)
+        .post('/users/mfa/enroll')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(201);
+      expect(enroll.body.otpauthUrl).toMatch(/^otpauth:\/\/totp\//);
+      const secret = enroll.body.secret;
+
+      // Activate with a real code.
+      await request(http)
+        .post('/users/mfa/activate')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ code: authenticator.generate(secret) })
+        .expect(201);
+
+      // Login now requires the code.
+      await request(http)
+        .post('/users/auth/login')
+        .send({ email, password })
+        .expect(401);
+
+      // ...and succeeds with a valid one.
+      const mfaLogin = await request(http)
+        .post('/users/auth/login')
+        .send({ email, password, totpCode: authenticator.generate(secret) })
+        .expect(201);
+      expect(mfaLogin.body.token).toBeDefined();
+    });
+
+    it('never exposes the MFA secret on the profile', async () => {
+      const email = `e2e_mfa_leak_${uniq}@test.com`;
+      await request(http)
+        .post('/users/auth/register')
+        .send({ first_name: 'M', last_name: 'L', email, password })
+        .expect(201);
+      const login = await request(http)
+        .post('/users/auth/login')
+        .send({ email, password })
+        .expect(201);
+      await request(http)
+        .post('/users/mfa/enroll')
+        .set('Authorization', `Bearer ${login.body.token}`)
+        .expect(201);
+      const profile = await request(http)
+        .get('/users/profile')
+        .set('Authorization', `Bearer ${login.body.token}`)
+        .expect(200);
+      expect(profile.body.mfa_secret).toBeUndefined();
     });
   });
 

@@ -112,7 +112,12 @@ tests pass; no service does ad-hoc ownership `where` checks.
   kind is enforced *inside* the atomic rotate (a token sent to the wrong
   endpoint is rejected **without** being consumed). e2e covers business rotation
   + cross-kind rejection.
-- ⬜ MFA (TOTP) for admins.
+- ✅ MFA (TOTP) — enroll (`POST /users/mfa/enroll` → otpauth URI) → activate
+  (`/mfa/activate`) → enforced at login (a valid 6-digit code is required when
+  `mfa_enabled`); disable requires a current code. Secret is `select:false` (never
+  loaded by ordinary finds, so it can't leak). otplib, RFC-6238, authenticator-app
+  compatible. Unit + e2e tested (real codes; profile-leak guard). Recommended for
+  ADMIN accounts.
 
 ## Phase 8 — Scale & performance  🔒
 - ✅ PgBouncer (transaction pooling): canonical `infra/pgbouncer/pgbouncer.ini`

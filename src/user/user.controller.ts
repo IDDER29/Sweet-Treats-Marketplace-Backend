@@ -16,6 +16,7 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { MfaCodeDto } from './dto/mfa-code.dto';
 import { AuthGuard } from '@nestjs/passport'; // JWT Auth Guard
 import { Throttle } from '@nestjs/throttler';
 
@@ -46,6 +47,25 @@ export class UsersController {
   @Post('auth/logout')
   async logout(@Body() dto: RefreshTokenDto) {
     return this.usersService.logout(dto.refreshToken);
+  }
+
+  // --- MFA (TOTP) — recommended for ADMIN accounts --------------------------
+  @UseGuards(AuthGuard('jwt'))
+  @Post('mfa/enroll')
+  async enrollMfa(@Request() req) {
+    return this.usersService.enrollMfa(req.user.userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('mfa/activate')
+  async activateMfa(@Request() req, @Body() dto: MfaCodeDto) {
+    return this.usersService.activateMfa(req.user.userId, dto.code);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('mfa/disable')
+  async disableMfa(@Request() req, @Body() dto: MfaCodeDto) {
+    return this.usersService.disableMfa(req.user.userId, dto.code);
   }
 
   @UseGuards(AuthGuard('jwt'))

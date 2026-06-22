@@ -1,4 +1,4 @@
-import { IsEmail, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class LoginUserDto {
   @IsEmail()
@@ -6,4 +6,9 @@ export class LoginUserDto {
 
   @MinLength(6)
   password: string;
+
+  // Required only when the account has MFA enabled.
+  @IsOptional()
+  @IsString()
+  totpCode?: string;
 }
