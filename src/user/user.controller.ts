@@ -5,7 +5,6 @@ import {
   Get,
   Patch,
   Delete,
-  Param,
   UseGuards,
   Request,
 } from '@nestjs/common';
@@ -29,7 +28,10 @@ export class UsersController {
     return this.usersService.register(createUserDto);
   }
 
-  @Throttle({ short: { limit: 5, ttl: 60000 }, medium: { limit: 20, ttl: 3600000 } })
+  @Throttle({
+    short: { limit: 5, ttl: 60000 },
+    medium: { limit: 20, ttl: 3600000 },
+  })
   @Post('auth/login')
   async login(@Body() loginUserDto: LoginUserDto) {
     return this.usersService.login(loginUserDto);
@@ -73,13 +75,19 @@ export class UsersController {
     return this.usersService.deleteAccount(req.user.userId);
   }
 
-  @Throttle({ short: { limit: 3, ttl: 60000 }, medium: { limit: 10, ttl: 3600000 } })
+  @Throttle({
+    short: { limit: 3, ttl: 60000 },
+    medium: { limit: 10, ttl: 3600000 },
+  })
   @Post('forgot-password')
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.usersService.forgotPassword(dto.email);
   }
 
-  @Throttle({ short: { limit: 5, ttl: 60000 }, medium: { limit: 20, ttl: 3600000 } })
+  @Throttle({
+    short: { limit: 5, ttl: 60000 },
+    medium: { limit: 20, ttl: 3600000 },
+  })
   @Post('reset-password')
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.usersService.resetPassword(dto.token, dto.newPassword);

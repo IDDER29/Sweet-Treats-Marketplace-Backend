@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './entities/product.entity';
@@ -58,9 +54,13 @@ export class ProductService {
   // Find all products with filtering and pagination.
   // Public catalog (no businessId) only returns active products.
   // Sellers see all their own products regardless of isActive.
-  async findAll(
-    query: ProductQueryDto,
-  ): Promise<{ data: Product[]; total: number; page: number; limit: number; totalPages: number }> {
+  async findAll(query: ProductQueryDto): Promise<{
+    data: Product[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
     const {
       businessId,
       category,
@@ -215,7 +215,10 @@ export class ProductService {
         product.stockQuantity += dto.quantity;
         break;
       case 'decrement':
-        product.stockQuantity = Math.max(0, product.stockQuantity - dto.quantity);
+        product.stockQuantity = Math.max(
+          0,
+          product.stockQuantity - dto.quantity,
+        );
         break;
     }
 

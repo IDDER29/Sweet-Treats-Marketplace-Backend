@@ -5,13 +5,16 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Order, OrderStatus } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { Users } from '../entities/users.entity';
 import { Product } from '../product/entities/product.entity';
 import { DeliverySlot } from '../delivery/entities/delivery-slot.entity';
-import { DiscountCode, DiscountType } from '../discount/entities/discount-code.entity';
+import {
+  DiscountCode,
+  DiscountType,
+} from '../discount/entities/discount-code.entity';
 import { DiscountCodeUsage } from '../discount/entities/discount-code-usage.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { MailQueueService } from '../mail/mail-queue.service';
@@ -76,7 +79,9 @@ export class OrderService {
         ...new Set(products.map((p) => p.business?.id).filter(Boolean)),
       ];
       if (businessIds.length > 1) {
-        throw new BadRequestException('All items must belong to the same business.');
+        throw new BadRequestException(
+          'All items must belong to the same business.',
+        );
       }
 
       const business = products[0].business;
@@ -441,7 +446,11 @@ export class OrderService {
     // Status-update email via the queue (non-blocking).
     if (order.customer?.email) {
       const customerName = order.customer.first_name || order.customer.email;
-      void this.mailQueue.statusUpdate(saved, order.customer.email, customerName);
+      void this.mailQueue.statusUpdate(
+        saved,
+        order.customer.email,
+        customerName,
+      );
     }
 
     return this.toResponse(saved);
