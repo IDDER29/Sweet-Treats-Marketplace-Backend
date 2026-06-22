@@ -149,8 +149,12 @@ tests pass; no service does ad-hoc ownership `where` checks.
 - ✅ GitHub Actions CI (`.github/workflows/ci.yml`): postgres+redis services,
   `lint → build → test → test:e2e`, plus a gated image-build job (buildx, GHA
   cache).
-- 🔒 Terraform IaC; Fargate/Cloud Run; blue-green + auto-rollback; pre-deploy
-  migration with snapshot; multi-AZ; tested DR/restore.
+- ✅ Terraform IaC skeleton (`infra/terraform/`): ECS Fargate (API + worker from
+  one image), ALB w/ HTTPS + `/health/ready` checks, multi-AZ RDS Postgres,
+  ElastiCache Redis (failover), S3 uploads via task IAM role (no static keys),
+  ECR, Secrets Manager (generated DB/JWT secrets), per-AZ NAT. `terraform
+  validate` passes. → blue-green + auto-rollback, pre-deploy migration snapshot,
+  and tested DR/restore remain.
 - 🔒 Sentry/metrics/tracing wired to alerting (SLO-based).
 
 ## Phase 10 — Commerce depth  🔒

@@ -27,13 +27,17 @@ export class StorageService {
     // STORAGE_ENDPOINT lets us point at any S3-compatible store (MinIO/R2) for
     // local dev and self-hosting; path-style addressing is required for MinIO.
     const endpoint = process.env.STORAGE_ENDPOINT;
+    // Only pass static keys when provided (local dev / MinIO). In production on
+    // ECS/EKS, leave them unset so the SDK resolves the task/instance IAM role
+    // via the default credential chain — no long-lived keys to manage or leak.
+    const accessKeyId = process.env.STORAGE_ACCESS_KEY;
+    const secretAccessKey = process.env.STORAGE_SECRET_KEY;
     this.s3 = new S3Client({
       region: this.region,
       ...(endpoint ? { endpoint, forcePathStyle: true } : {}),
-      credentials: {
-        accessKeyId: process.env.STORAGE_ACCESS_KEY || '',
-        secretAccessKey: process.env.STORAGE_SECRET_KEY || '',
-      },
+      ...(accessKeyId && secretAccessKey
+        ? { credentials: { accessKeyId, secretAccessKey } }
+        : {}),
     });
   }
 
