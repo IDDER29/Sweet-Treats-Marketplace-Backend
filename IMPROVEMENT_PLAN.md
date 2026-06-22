@@ -89,41 +89,52 @@ Status legend: ✅ done in this session · 🔜 recommended next · 🧭 larger/
 
 ---
 
-## 🔜 Still recommended (contained)
+## ✅ Fixed in this session — wave 3
 
-### Money handling end-to-end  ·  `payment.service.ts`, `order.service.ts`
-Columns are correctly `decimal(10,2)` and the Stripe amount is derived from the
-frozen `order.totalAmount` (so it can't drift from client input), but the math
-still goes through JS `Number`. For full safety, carry money as integer minor
-units (or `decimal.js`) through checkout and the Stripe conversion, and assert
-the intent amount equals the stored total before charging.
-
-### Validate percentage discount value at creation  ·  `discount.service.ts`
-The checkout already clamps a >100% code, but rejecting `value > 100` for
-`PERCENTAGE` at creation time gives a clearer error (the DTO can't do it alone
-because `FIXED_AMOUNT` legitimately exceeds 100).
+- **Zero/negative payment guard** + `toMinorUnits` helper in `payment.service.ts`
+  (a free order no longer reaches Stripe with a 0 amount).
+- **Percentage discount value > 100 rejected at creation** (`discount.service.ts`),
+  on top of the existing checkout clamp.
+- **DB `CHECK` constraints** `product.price >= 0` and `order.totalAmount >= 0`
+  (migration `AddMoneyCheckConstraints`, verified — negative price is rejected).
+- **Removed the dead duplicate entity set** — deleted the 9 unused snake_case
+  scaffolding entities, dropped them from `app.module`, and added migration
+  `DropDeadEntityTables` to drop the duplicate tables. The active schema now
+  matches the entity set exactly (`migration:generate` reports no changes).
+- Refreshed `@nestjs/cli`/`@nestjs/schematics` to latest v10 (build-time only).
 
 ---
 
-## 🧭 Larger / strategic (unchanged — own PRs)
+## 🔜 Still recommended (contained)
 
-### Remove the dead duplicate entity set
-`src/entities/*` (snake_case `Businesses`, `Products`, `Orders`, `OrderItems`,
-`Payments`, `Reviews`, `Deliveries`, `DeliveryPerson`, `BusinessOwners`) are
-schema-only scaffolding — only `Users` is used, yet they are registered in
-`app.module.ts`, so the DB carries duplicate tables (`business` **and**
-`businesses`, etc.). Remove the unused entities + their registrations, keep
-`Users`, and ship a migration dropping the dead tables. Destructive — own PR,
-backup first.
+### Money handling fully in minor units  ·  `payment.service.ts`, `order.service.ts`
+The Stripe amount is now guarded and derived from the frozen `order.totalAmount`,
+but checkout math still flows through JS `Number`. For belt-and-braces, carry
+money as integer minor units (or `decimal.js`) through checkout and assert the
+intent amount equals the stored total before charging.
 
-### NestJS 10 → 11 upgrade
-Clears the remaining high advisories (`@nestjs/platform-express`/`multer`, plus
-dev-tooling `glob`/`tmp`/`picomatch`/`@nestjs/cli`). Framework major — own branch,
-full regression pass.
+---
 
-### `CHECK` constraints on money columns
-Add `CHECK (price >= 0)` / `CHECK ("totalAmount" >= 0)` in the next migration
-(belt-and-braces over the DTO/service validation).
+## 🧭 Larger / strategic (own PRs)
+
+### NestJS 10 → 11 upgrade — the only remaining vuln blocker
+After this session the audit is **0 critical / 6 high** (down from 2 / 21). All 6
+remaining highs are fixable *only* by the Nest 11 ecosystem major:
+- `@nestjs/platform-express` + `multer` (runtime) — need platform-express 11.
+- `@nestjs/cli`, `glob`, `tmp`, `picomatch` (dev/build-time only — never run in
+  production) — need the v11 CLI/schematics.
+
+This is intentionally **not** done here because it is a framework major with real
+breakage, requiring a human-reviewed PR and full regression:
+- Nest 11 brings **Express 5** (new path-to-regexp). The upload route
+  `@Delete(':key(*)')` in `upload.controller.ts` uses Express-4 wildcard syntax
+  that is **invalid in Express 5** and must be rewritten (e.g. a splat param).
+- Node 20+ is required; throttler/passport/validation integrations should be
+  re-verified.
+
+Do it on its own branch: bump all `@nestjs/*` to 11 + `@nestjs/cli`/`schematics`
+to 11, fix the wildcard route, run the full e2e suite, and smoke-test uploads
+and rate-limiting before merging.
 
 ### Tests & observability
 - No tests for `admin`, `analytics`, `upload`, `custom-order`, `category`, `mail`.
@@ -136,8 +147,6 @@ Add `CHECK (price >= 0)` / `CHECK ("totalAmount" >= 0)` in the next migration
 ---
 
 ## Suggested order of execution
-1. **🔜 Still recommended** — money handling + creation-time discount validation.
-2. **🧭 CHECK constraints** — fold into the next migration.
-3. **🧭 Dead-entity removal** — own PR, destructive migration, backup first.
-4. **🧭 Nest 11 upgrade** — own branch, full regression.
-5. **🧭 Tests** — backfill alongside each change above.
+1. **🔜 Money in minor units** — the last contained polish item.
+2. **🧭 Nest 11 upgrade** — own branch, full regression (clears the final 6 highs).
+3. **🧭 Tests** — backfill module coverage and fix/remove the stale unit specs.
