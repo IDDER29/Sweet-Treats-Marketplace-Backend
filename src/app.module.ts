@@ -12,15 +12,6 @@ import { Product } from './product/entities/product.entity';
 import { CategoryModule } from './category/category.module';
 import { Category } from './category/entities/category.entity';
 import { Users } from './entities/users.entity';
-import { Businesses } from './entities/businesses.entity';
-import { Reviews } from './entities/reviews.entity';
-import { Deliveries } from './entities/deliveries.entity';
-import { Products } from './entities/products.entity';
-import { Orders } from './entities/orders.entity';
-import { BusinessOwners } from './entities/businessOwners.entity';
-import { OrderItems } from './entities/orderItems.entity';
-import { Payments } from './entities/payments.entity';
-import { DeliveryPerson } from './entities/deliveryPerson.entity';
 import { UserModule } from './user/user.module';
 import { OrderModule } from './order/order.module';
 import { ReviewModule } from './review/review.module';
@@ -59,15 +50,6 @@ import { CustomOrderRequest } from './custom-order/entities/custom-order-request
         Product,
         Category,
         Users,
-        Businesses,
-        Reviews,
-        Deliveries,
-        Products,
-        Orders,
-        BusinessOwners,
-        OrderItems,
-        Payments,
-        DeliveryPerson,
         Order,
         OrderItem,
         Review,
