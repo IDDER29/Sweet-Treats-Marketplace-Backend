@@ -14,7 +14,7 @@ import { DeliverySlot } from '../delivery/entities/delivery-slot.entity';
 import { DiscountCode, DiscountType } from '../discount/entities/discount-code.entity';
 import { DiscountCodeUsage } from '../discount/entities/discount-code-usage.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { MailService } from '../mail/mail.service';
+import { MailQueueService } from '../mail/mail-queue.service';
 import { assertOwnership } from '../common/authorization/ownership.util';
 import { MetricsService } from '../observability/metrics.service';
 
@@ -34,7 +34,7 @@ export class OrderService {
     @InjectRepository(DiscountCode)
     private readonly discountCodeRepository: Repository<DiscountCode>,
     private readonly dataSource: DataSource,
-    private readonly mailService: MailService,
+    private readonly mailQueue: MailQueueService,
     private readonly metrics: MetricsService,
   ) {}
 
@@ -283,8 +283,10 @@ export class OrderService {
 
       // Send email notifications (non-blocking — failures are swallowed)
       const customerName = customer.first_name || customer.email;
-      this.mailService.sendOrderConfirmation(full, customer.email, customerName);
-      this.mailService.sendOrderAlert(full, business.email);
+      // Durable email via the queue (retries + DLQ). Fire-and-forget so
+      // checkout never blocks on mail.
+      void this.mailQueue.orderConfirmation(full, customer.email, customerName);
+      void this.mailQueue.orderAlert(full, business.email);
 
       // Business KPI: orders + GMV (Prometheus).
       this.metrics.recordOrderCreated(Number(full.totalAmount));
@@ -436,10 +438,10 @@ export class OrderService {
     order.status = status;
     const saved = await this.orderRepository.save(order);
 
-    // Send status update email to customer (non-blocking — failures are swallowed)
+    // Status-update email via the queue (non-blocking).
     if (order.customer?.email) {
       const customerName = order.customer.first_name || order.customer.email;
-      this.mailService.sendStatusUpdate(saved, order.customer.email, customerName);
+      void this.mailQueue.statusUpdate(saved, order.customer.email, customerName);
     }
 
     return this.toResponse(saved);

@@ -11,6 +11,7 @@ import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis'
 import { APP_GUARD } from '@nestjs/core';
 import type Redis from 'ioredis';
 import { RedisModule, REDIS_CLIENT } from './redis/redis.module';
+import { QueueModule } from './queue/queue.module';
 import { BusinessModule } from './business/business.module';
 import { Business } from './business/entities/business.entity';
 import { ProductModule } from './product/product.module';
@@ -80,6 +81,7 @@ import { QueryFailedExceptionFilter } from './common/filters/query-failed.filter
       migrationsRun: process.env.NODE_ENV === 'production',
     }),
     RedisModule,
+    QueueModule,
     // Distributed rate limiting: counters live in Redis (shared client) so
     // limits hold across all API replicas — in-memory storage would let each
     // replica allow the full quota. Falls back to in-memory without Redis.

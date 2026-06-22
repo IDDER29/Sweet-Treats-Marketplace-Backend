@@ -84,12 +84,16 @@ tests pass; no service does ad-hoc ownership `where` checks.
 - ⬜ Extend caching to product detail / seller dashboard aggregates.
 - ⬜ Idempotency-Key middleware for checkout / payment intents.
 
-## Phase 6 — Async / BullMQ  🔒 (needs Redis; ADR-0003)
-- 🔒 BullMQ + separate worker deployment.
-- 🔒 Migrate email + Stripe-webhook processing + image derivatives to queues with
-  retries + DLQ + alerting.
-- 🔒 Schedulers (discount/quote/slot expiry, stale-PENDING cleanup, rollups) with
-  leader lock.
+## Phase 6 — Async / BullMQ  (in progress)
+- ✅ BullMQ root (`QueueModule`) on Redis with reliability defaults (5 attempts,
+  exponential backoff, bounded dead-letter set).
+- ✅ Order emails moved to the `email` queue (producer + in-process processor),
+  with inline fallback when Redis is absent; verified jobs enqueue, retry and
+  the worker shuts down cleanly.
+- ⬜ Dedicated worker deployment entrypoint (processor runs in-process for now).
+- ⬜ Move Stripe-webhook processing + image derivatives onto queues; DLQ alerting.
+- ⬜ Schedulers (discount/quote/slot expiry, stale-PENDING cleanup, rollups) with
+  a Redis leader lock.
 
 ## Phase 7 — Auth unification  🔒 (needs Redis + frontend coord; ADR-0002)
 - 🔒 Standardize bcrypt cost to 12 across user + business.
