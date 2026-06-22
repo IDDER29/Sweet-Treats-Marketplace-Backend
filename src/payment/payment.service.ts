@@ -12,6 +12,7 @@ import { Order, OrderStatus } from '../order/entities/order.entity';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { RefundPaymentDto } from './dto/refund-payment.dto';
 import { OrderService } from '../order/order.service';
+import { assertOwnership } from '../common/authorization/ownership.util';
 
 @Injectable()
 export class PaymentService {
@@ -160,8 +161,7 @@ export class PaymentService {
       relations: ['business', 'items', 'items.product'],
     });
     if (!order) throw new NotFoundException('Order not found');
-    if (order.business?.id !== requestingBusinessId)
-      throw new ForbiddenException('Not your order');
+    assertOwnership(order, 'business.id', requestingBusinessId, 'order');
 
     const payment = await this.paymentRepository.findOne({
       where: { order: { id: order.id } },
@@ -194,8 +194,7 @@ export class PaymentService {
       relations: ['customer'],
     });
     if (!order) throw new NotFoundException('Order not found');
-    if (order.customer?.user_id !== customerId)
-      throw new ForbiddenException('Not your order');
+    assertOwnership(order, 'customer.user_id', customerId, 'order');
 
     const payment = await this.paymentRepository.findOne({
       where: { order: { id: orderId } },

@@ -15,6 +15,7 @@ import { DiscountCode, DiscountType } from '../discount/entities/discount-code.e
 import { DiscountCodeUsage } from '../discount/entities/discount-code-usage.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { MailService } from '../mail/mail.service';
+import { assertOwnership } from '../common/authorization/ownership.util';
 
 const ORDER_RELATIONS = ['items', 'items.product', 'business', 'customer'];
 
@@ -303,9 +304,7 @@ export class OrderService {
 
   async findOneForCustomer(customerId: string, id: string) {
     const order = await this.getOrderOrFail(id);
-    if (order.customer?.user_id !== customerId) {
-      throw new ForbiddenException('You do not have access to this order');
-    }
+    assertOwnership(order, 'customer.user_id', customerId, 'order');
     return this.toResponse(order);
   }
 
@@ -318,9 +317,7 @@ export class OrderService {
       if (!order) {
         throw new NotFoundException('Order not found');
       }
-      if (order.customer?.user_id !== customerId) {
-        throw new ForbiddenException('You do not have access to this order');
-      }
+      assertOwnership(order, 'customer.user_id', customerId, 'order');
       if (order.status !== OrderStatus.PENDING) {
         throw new BadRequestException('Only pending orders can be cancelled');
       }
@@ -412,11 +409,7 @@ export class OrderService {
 
   async updateStatus(id: string, status: OrderStatus, businessId: string) {
     const order = await this.getOrderOrFail(id);
-    if (order.business?.id !== businessId) {
-      throw new ForbiddenException(
-        'You do not have access to update this order',
-      );
-    }
+    assertOwnership(order, 'business.id', businessId, 'order');
 
     // Enforce valid status transitions. Payment to PAID is handled by the
     // webhook in PaymentService, so sellers only drive post-payment flow.

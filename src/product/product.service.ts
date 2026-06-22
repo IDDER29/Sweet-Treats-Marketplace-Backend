@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './entities/product.entity';
+import { assertOwnership } from '../common/authorization/ownership.util';
 import { Business } from '../business/entities/business.entity';
 import { Category } from '../category/entities/category.entity';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -146,9 +147,7 @@ export class ProductService {
     if (!product) {
       throw new NotFoundException('Product not found');
     }
-    if (product.business?.id !== businessId) {
-      throw new ForbiddenException('Not your product');
-    }
+    assertOwnership(product, 'business.id', businessId, 'product');
 
     Object.assign(product, updateProductDto);
     return this.productRepository.save(product);
@@ -163,9 +162,7 @@ export class ProductService {
     if (!product) {
       throw new NotFoundException('Product not found');
     }
-    if (product.business?.id !== businessId) {
-      throw new ForbiddenException('Not your product');
-    }
+    assertOwnership(product, 'business.id', businessId, 'product');
 
     // Delete S3 images before removing the DB record
     if (product.images?.length) {
@@ -190,8 +187,7 @@ export class ProductService {
       relations: ['business'],
     });
     if (!product) throw new NotFoundException('Product not found');
-    if (product.business?.id !== businessId)
-      throw new ForbiddenException('Not your product');
+    assertOwnership(product, 'business.id', businessId, 'product');
     product.images = images;
     return this.productRepository.save(product);
   }
@@ -209,11 +205,7 @@ export class ProductService {
     if (!product) {
       throw new NotFoundException('Product not found');
     }
-    if (product.business?.id !== businessId) {
-      throw new ForbiddenException(
-        'You do not have permission to manage this product',
-      );
-    }
+    assertOwnership(product, 'business.id', businessId, 'product');
 
     switch (dto.operation) {
       case 'set':
@@ -249,11 +241,7 @@ export class ProductService {
     if (!product) {
       throw new NotFoundException('Product not found');
     }
-    if (product.business?.id !== businessId) {
-      throw new ForbiddenException(
-        'You do not have permission to view this product stock',
-      );
-    }
+    assertOwnership(product, 'business.id', businessId, 'product');
 
     return {
       productId: product.id,

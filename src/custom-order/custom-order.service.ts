@@ -10,6 +10,7 @@ import {
   CustomOrderRequest,
   CustomOrderStatus,
 } from './entities/custom-order-request.entity';
+import { assertOwnership } from '../common/authorization/ownership.util';
 import { Users } from '../entities/users.entity';
 import { Business } from '../business/entities/business.entity';
 import { CreateCustomOrderDto } from './dto/create-custom-order.dto';
@@ -111,11 +112,7 @@ export class CustomOrderService {
       throw new NotFoundException('Custom order request not found');
     }
 
-    if (request.customer?.user_id !== customerId) {
-      throw new ForbiddenException(
-        'You do not have access to this custom order request',
-      );
-    }
+    assertOwnership(request, 'customer.user_id', customerId, 'custom order request');
 
     return request;
   }
@@ -134,11 +131,7 @@ export class CustomOrderService {
       throw new NotFoundException('Custom order request not found');
     }
 
-    if (request.business?.id !== businessId) {
-      throw new ForbiddenException(
-        'You do not have access to this custom order request',
-      );
-    }
+    assertOwnership(request, 'business.id', businessId, 'custom order request');
 
     if (request.status !== CustomOrderStatus.PENDING) {
       throw new BadRequestException(
@@ -181,11 +174,7 @@ export class CustomOrderService {
       throw new NotFoundException('Custom order request not found');
     }
 
-    if (request.customer?.user_id !== customerId) {
-      throw new ForbiddenException(
-        'You do not have access to this custom order request',
-      );
-    }
+    assertOwnership(request, 'customer.user_id', customerId, 'custom order request');
 
     if (request.status !== CustomOrderStatus.QUOTED) {
       throw new BadRequestException(
@@ -216,11 +205,7 @@ export class CustomOrderService {
       throw new NotFoundException('Custom order request not found');
     }
 
-    if (request.business?.id !== businessId) {
-      throw new ForbiddenException(
-        'You do not have access to this custom order request',
-      );
-    }
+    assertOwnership(request, 'business.id', businessId, 'custom order request');
 
     const validTransitions: Partial<Record<CustomOrderStatus, CustomOrderStatus[]>> = {
       [CustomOrderStatus.ACCEPTED]: [
@@ -260,11 +245,7 @@ export class CustomOrderService {
       throw new NotFoundException('Custom order request not found');
     }
 
-    if (request.customer?.user_id !== customerId) {
-      throw new ForbiddenException(
-        'You do not have access to this custom order request',
-      );
-    }
+    assertOwnership(request, 'customer.user_id', customerId, 'custom order request');
 
     if (
       request.status !== CustomOrderStatus.PENDING &&
