@@ -145,6 +145,11 @@ describe('Smoke / integration (e2e)', () => {
     it('rejects a protected route without a token', async () => {
       await request(http).get('/users/profile').expect(401);
     });
+
+    it('returns 400 (not 500) for a malformed id on a uuid route', async () => {
+      // A non-uuid against a uuid column would otherwise be a raw DB 500.
+      await request(http).get('/products/not-a-uuid').expect(400);
+    });
   });
 
   describe('Admin RBAC (RolesGuard)', () => {

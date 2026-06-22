@@ -37,6 +37,8 @@ import { CustomOrderRequest } from './custom-order/entities/custom-order-request
 import { AuditModule } from './audit/audit.module';
 import { AuditLog } from './audit/entities/audit-log.entity';
 import { ObservabilityModule } from './observability/observability.module';
+import { APP_FILTER } from '@nestjs/core';
+import { QueryFailedExceptionFilter } from './common/filters/query-failed.filter';
 @Module({
   imports: [
     // Import ConfigModule to load environment variables
@@ -102,6 +104,10 @@ import { ObservabilityModule } from './observability/observability.module';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: QueryFailedExceptionFilter,
     },
   ],
 })
