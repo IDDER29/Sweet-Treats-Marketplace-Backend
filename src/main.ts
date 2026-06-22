@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
+import { setupSwagger } from './common/swagger';
 import helmet from 'helmet';
 
 async function bootstrap() {
@@ -13,8 +14,19 @@ async function bootstrap() {
   // Route Nest's own logs through Pino (structured, correlated).
   app.useLogger(app.get(Logger));
 
-  // Security headers
-  app.use(helmet());
+  // Security headers. CSP is extended to allow the self-hosted Swagger UI's
+  // inline bootstrap (acceptable for a JSON API that renders no user HTML).
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+          'script-src': ["'self'", "'unsafe-inline'"],
+          'img-src': ["'self'", 'data:', 'https:'],
+        },
+      },
+    }),
+  );
 
   // CORS
   app.enableCors({
@@ -33,6 +45,9 @@ async function bootstrap() {
       forbidNonWhitelisted: true, // Throw an error if non-whitelisted properties are found
     }),
   );
+
+  // Publish the OpenAPI contract at /api/docs (+ /api/docs-json).
+  setupSwagger(app);
 
   if (!process.env.JWT_SECRET) {
     // In production, refuse to boot with the well-known fallback secret — it
