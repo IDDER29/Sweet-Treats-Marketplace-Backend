@@ -102,7 +102,10 @@ tests pass; no service does ad-hoc ownership `where` checks.
   without Redis. e2e verifies rotation + single-use rejection.
 - 🔁 RS256 — deferred by design: HS256 + short TTL + refresh is correct for the
   monolith; adopt RS256 at the gateway/service-split (ADR-0002 note).
-- ⬜ Reuse-detection (revoke the whole family on a replayed refresh token).
+- ✅ Reuse-detection: refresh tokens carry a *family*; rotation marks the old
+  token `used` (kept, not deleted), and replaying a used token burns the whole
+  family (atomic `active→used` flip via Lua). Verified against live Redis (unit)
+  and through HTTP (e2e: the valid rotated token dies once the family is burned).
 - ⬜ Fold business auth into the unified identity/token model.
 - ⬜ MFA (TOTP) for admins.
 

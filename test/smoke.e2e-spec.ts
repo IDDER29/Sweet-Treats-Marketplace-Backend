@@ -174,10 +174,17 @@ describe('Smoke / integration (e2e)', () => {
         .set('Authorization', `Bearer ${refreshed.body.token}`)
         .expect(200);
 
-      // The old refresh token is now single-use -> rejected.
+      // The old refresh token is now single-use -> rejected. Replaying it also
+      // trips reuse-detection, which burns the whole token family.
       await request(http)
         .post('/users/auth/refresh')
         .send({ refreshToken })
+        .expect(401);
+
+      // Because the family was revoked, the *valid* rotated token is dead too.
+      await request(http)
+        .post('/users/auth/refresh')
+        .send({ refreshToken: refreshed.body.refreshToken })
         .expect(401);
     });
 
