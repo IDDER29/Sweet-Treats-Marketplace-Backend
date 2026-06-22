@@ -40,6 +40,21 @@ services:
     ports: ['9000:9000', '9001:9001']
     volumes: ['miniodata:/data']
 
+  # One-shot: create the bucket and make the products prefix world-readable so
+  # STORAGE_CDN_URL serves images directly in local dev.
+  createbuckets:
+    image: minio/mc
+    depends_on: { minio: { condition: service_started } }
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >
+        until mc alias set local http://minio:9000 minioadmin minioadmin;
+        do echo 'waiting for minio'; sleep 1; done;
+        mc mb -p local/sweet-treats;
+        mc anonymous set download local/sweet-treats;
+        exit 0
+
   api:
     build: .
     environment: &app-env
@@ -57,6 +72,7 @@ services:
       STORAGE_BUCKET: sweet-treats
       STORAGE_ACCESS_KEY: minioadmin
       STORAGE_SECRET_KEY: minioadmin
+      STORAGE_ENDPOINT: http://minio:9000 # S3-compatible store for local dev
       STORAGE_CDN_URL: http://localhost:9000/sweet-treats
       ALLOWED_ORIGINS: http://localhost:3000,http://localhost:3001
       PROCESS_QUEUES: 'false' # API enqueues only; the worker processes

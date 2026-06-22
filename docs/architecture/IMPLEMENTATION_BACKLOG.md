@@ -117,7 +117,13 @@ tests pass; no service does ad-hoc ownership `where` checks.
 ## Phase 8 — Scale & performance  🔒
 - 🔒 PgBouncer (transaction pooling) before scaling API replicas.
 - 🔒 Read replica + read/write routing for catalog/analytics/admin.
-- 🔒 CDN + Cloudflare R2 (presigned uploads, on-the-fly resize).
+- ✅ Presigned direct-to-S3 uploads: `POST /uploads/product-image/presign`
+  returns a short-lived (5m) signed PUT URL so image bytes never transit the
+  API; the object key is minted server-side under the business prefix.
+  `STORAGE_ENDPOINT` makes it work against any S3-compatible store (MinIO/R2);
+  docker-compose wires MinIO + a bucket-init container. Verified with a real
+  PUT→GET round-trip against MinIO (200, content-type preserved, bytes match)
+  and a unit spec over the signed URL. → CDN + on-the-fly resize remain infra.
 - ✅ Postgres full-text product search: weighted `tsvector`
   (name▸description▸ingredients), `plainto_tsquery`, relevance-ranked
   (`ts_rank`), backed by a GIN expression index (`AddProductFullTextSearch`
