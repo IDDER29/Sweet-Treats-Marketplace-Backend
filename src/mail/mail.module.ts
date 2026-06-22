@@ -39,7 +39,14 @@ import { MailProcessor } from './mail.processor';
       }),
     }),
   ],
-  providers: [MailService, MailQueueService, MailProcessor],
+  // Process the email queue in-process by default (single-process dev / tests).
+  // In a scaled deployment set PROCESS_QUEUES=false on the API and run the
+  // dedicated worker (src/worker.ts) so a mail backlog can't starve the API.
+  providers: [
+    MailService,
+    MailQueueService,
+    ...(process.env.PROCESS_QUEUES !== 'false' ? [MailProcessor] : []),
+  ],
   exports: [MailService, MailQueueService],
 })
 export class MailModule {}
