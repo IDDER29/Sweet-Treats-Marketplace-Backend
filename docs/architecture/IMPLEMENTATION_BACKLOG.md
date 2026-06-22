@@ -115,8 +115,12 @@ tests pass; no service does ad-hoc ownership `where` checks.
 - ⬜ MFA (TOTP) for admins.
 
 ## Phase 8 — Scale & performance  🔒
-- 🔒 PgBouncer (transaction pooling) before scaling API replicas.
-- 🔒 Read replica + read/write routing for catalog/analytics/admin.
+- ✅ PgBouncer (transaction pooling): canonical `infra/pgbouncer/pgbouncer.ini`
+  + opt-in compose service (`--profile scale`). Verified the app runs end-to-end
+  through it (TypeORM txns + parameterized FTS); see `docs/architecture/scaling.md`.
+- ✅ Read replica + read/write routing: `DB_REPLICA_HOSTS` enables TypeORM
+  replication (writes/migrations→master, reads→replicas) via
+  `buildTypeOrmOptions()`; graceful single-connection default. Unit-tested.
 - ✅ Presigned direct-to-S3 uploads: `POST /uploads/product-image/presign`
   returns a short-lived (5m) signed PUT URL so image bytes never transit the
   API; the object key is minted server-side under the business prefix.

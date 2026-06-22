@@ -13,34 +13,22 @@ import type Redis from 'ioredis';
 import { RedisModule, REDIS_CLIENT } from './redis/redis.module';
 import { QueueModule } from './queue/queue.module';
 import { BusinessModule } from './business/business.module';
-import { Business } from './business/entities/business.entity';
 import { ProductModule } from './product/product.module';
-import { Product } from './product/entities/product.entity';
 import { CategoryModule } from './category/category.module';
-import { Category } from './category/entities/category.entity';
-import { Users } from './entities/users.entity';
 import { UserModule } from './user/user.module';
 import { OrderModule } from './order/order.module';
 import { ReviewModule } from './review/review.module';
 import { PaymentModule } from './payment/payment.module';
 import { DeliveryModule } from './delivery/delivery.module';
 import { UploadModule } from './upload/upload.module';
-import { Order } from './order/entities/order.entity';
-import { OrderItem } from './order/entities/order-item.entity';
-import { Review } from './review/entities/review.entity';
-import { Payment } from './payment/entities/payment.entity';
-import { DeliverySlot } from './delivery/entities/delivery-slot.entity';
 import { DiscountModule } from './discount/discount.module';
-import { DiscountCode } from './discount/entities/discount-code.entity';
-import { DiscountCodeUsage } from './discount/entities/discount-code-usage.entity';
 import { AdminModule } from './admin/admin.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { MailModule } from './mail/mail.module';
 import { CustomOrderModule } from './custom-order/custom-order.module';
-import { CustomOrderRequest } from './custom-order/entities/custom-order-request.entity';
 import { AuditModule } from './audit/audit.module';
-import { AuditLog } from './audit/entities/audit-log.entity';
 import { ObservabilityModule } from './observability/observability.module';
+import { buildTypeOrmOptions } from './common/typeorm.config';
 import { APP_FILTER } from '@nestjs/core';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { QueryFailedExceptionFilter } from './common/filters/query-failed.filter';
@@ -55,33 +43,9 @@ import { IdempotencyInterceptor } from './common/idempotency/idempotency.interce
     LoggerModule.forRoot(loggerConfig),
     // Metrics (/metrics) + Sentry error capture (global interceptors)
     ObservabilityModule,
-    // Configure TypeOrmModule using environment variables
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: process.env.DB_HOST,
-      port: parseInt(process.env.DB_PORT, 10),
-      username: process.env.DB_USERNAME,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME,
-      entities: [
-        Business,
-        Product,
-        Category,
-        Users,
-        Order,
-        OrderItem,
-        Review,
-        Payment,
-        DeliverySlot,
-        DiscountCode,
-        DiscountCodeUsage,
-        CustomOrderRequest,
-        AuditLog,
-      ],
-      synchronize: process.env.NODE_ENV !== 'production',
-      migrations: ['dist/migrations/*.js'],
-      migrationsRun: process.env.NODE_ENV === 'production',
-    }),
+    // Configure TypeOrmModule from env. Supports optional read replicas
+    // (DB_REPLICA_HOSTS) via buildTypeOrmOptions — see src/common/typeorm.config.ts.
+    TypeOrmModule.forRoot(buildTypeOrmOptions()),
     RedisModule,
     QueueModule,
     // Distributed rate limiting: counters live in Redis (shared client) so

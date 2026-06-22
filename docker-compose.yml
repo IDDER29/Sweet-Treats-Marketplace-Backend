@@ -17,6 +17,26 @@ services:
       timeout: 3s
       retries: 10
 
+  # Transaction-pooling connection pooler (opt-in: `--profile scale`). Env here
+  # mirrors infra/pgbouncer/pgbouncer.ini, the canonical config for k8s/VM
+  # deploys. To route the app through it, set DB_HOST=pgbouncer, DB_PORT=6432.
+  pgbouncer:
+    image: edoburu/pgbouncer
+    profiles: ['scale']
+    environment:
+      DB_HOST: postgres
+      DB_PORT: '5432'
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      POOL_MODE: transaction
+      AUTH_TYPE: scram-sha-256
+      MAX_CLIENT_CONN: '1000'
+      DEFAULT_POOL_SIZE: '20'
+      LISTEN_PORT: '6432'
+    ports: ['6432:6432']
+    depends_on:
+      postgres: { condition: service_healthy }
+
   redis:
     image: redis:7-alpine
     command: ['redis-server', '--save', '', '--appendonly', 'no']

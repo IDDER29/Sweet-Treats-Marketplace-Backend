@@ -1,0 +1,10 @@
+; PgBouncer userlist — only used when auth_query is NOT configured.
+; Format: "username" "password-or-hash"
+;
+; Use a SCRAM-SHA-256 verifier (never a plaintext password) in real deployments.
+; Generate it from Postgres after setting the role's password:
+;   SELECT rolname, rolpassword FROM pg_authid WHERE rolname = 'postgres';
+; and paste the "SCRAM-SHA-256$..." value below.
+;
+; The placeholder below is for local docker-compose only (postgres/postgres).
+"postgres" "postgres"
