@@ -118,7 +118,12 @@ tests pass; no service does ad-hoc ownership `where` checks.
 - 🔒 PgBouncer (transaction pooling) before scaling API replicas.
 - 🔒 Read replica + read/write routing for catalog/analytics/admin.
 - 🔒 CDN + Cloudflare R2 (presigned uploads, on-the-fly resize).
-- 🔒 Postgres FTS (`tsvector` + `pg_trgm`) → Meilisearch at scale.
+- ✅ Postgres full-text product search: weighted `tsvector`
+  (name▸description▸ingredients), `plainto_tsquery`, relevance-ranked
+  (`ts_rank`), backed by a GIN expression index (`AddProductFullTextSearch`
+  migration). Stemmed + stop-word aware — "cakes" matches "cake" (ILIKE missed
+  it). Works in dev (synchronize, seq-scan) and prod (migration, index-scan —
+  verified via EXPLAIN). e2e covers the stemmed match. → Meilisearch at scale.
 
 ## Phase 9 — Platform & DevOps  (containerization done; cloud infra 🔒)
 - ✅ Multi-stage `Dockerfile` (`node:20-slim`): builder compiles TS → `dist`,

@@ -344,6 +344,19 @@ describe('Smoke / integration (e2e)', () => {
       productId = res.body.id;
     });
 
+    it('finds the product via stemmed full-text search (cakes -> cake)', async () => {
+      // "cakes" (plural) must match the "...Cake" product through FTS stemming —
+      // a plain ILIKE '%cakes%' would miss it entirely.
+      const res = await request(http)
+        .get('/products')
+        .query({ search: 'cakes' })
+        .expect(200);
+      expect(res.body.total).toBeGreaterThan(0);
+      expect(Array.isArray(res.body.data)).toBe(true);
+      const names = res.body.data.map((p: any) => String(p.name).toLowerCase());
+      expect(names.some((n: string) => n.includes('cake'))).toBe(true);
+    });
+
     it('checks out an order with a server-recomputed total', async () => {
       const res = await request(http)
         .post('/orders')
