@@ -16,6 +16,7 @@ import { DiscountCodeUsage } from '../discount/entities/discount-code-usage.enti
 import { CreateOrderDto } from './dto/create-order.dto';
 import { MailService } from '../mail/mail.service';
 import { assertOwnership } from '../common/authorization/ownership.util';
+import { MetricsService } from '../observability/metrics.service';
 
 const ORDER_RELATIONS = ['items', 'items.product', 'business', 'customer'];
 
@@ -34,6 +35,7 @@ export class OrderService {
     private readonly discountCodeRepository: Repository<DiscountCode>,
     private readonly dataSource: DataSource,
     private readonly mailService: MailService,
+    private readonly metrics: MetricsService,
   ) {}
 
   // Create an order ("checkout") from a cart payload. Prices are always read
@@ -283,6 +285,9 @@ export class OrderService {
       const customerName = customer.first_name || customer.email;
       this.mailService.sendOrderConfirmation(full, customer.email, customerName);
       this.mailService.sendOrderAlert(full, business.email);
+
+      // Business KPI: orders + GMV (Prometheus).
+      this.metrics.recordOrderCreated(Number(full.totalAmount));
 
       return this.toResponse(full);
     } catch (err) {

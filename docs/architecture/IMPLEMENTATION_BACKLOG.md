@@ -29,9 +29,13 @@ here and left for a reviewed rollout.
 - ✅ Health checks — `/health/live`, `/health/ready` (DB) via `@nestjs/terminus`.
 - ✅ Structured logging — Pino (`nestjs-pino`) as the app logger; per-request log
   line with `requestId`, method, route, status, duration; PII/secret redaction.
-- ⬜ Sentry error tracking (needs DSN/secret) — wire `@sentry/node`, releases.
-- ⬜ Prometheus `/metrics` (RED + business KPIs) + Grafana dashboards.
-- ⬜ OpenTelemetry tracing (API→DB→Stripe→queue).
+- ✅ Sentry error capture wired (DSN-gated no-op without `SENTRY_DSN`); a global
+  interceptor reports 5xx and re-throws so error responses are unchanged.
+- ✅ Prometheus `/metrics` — default Node/process metrics, RED
+  `http_request_duration_seconds` (route-pattern labels), and business counters
+  (`orders_created_total`, `order_value_gbp_total`). ⬜ Grafana dashboards + alerts.
+- ⬜ OpenTelemetry tracing (API→DB→Stripe→queue) — wants an OTLP collector to be
+  meaningful; deferred to the infra phase.
 
 **Acceptance:** every response carries `x-request-id`; `/health/ready` returns 503
 when DB is down; logs are structured JSON; build + e2e green.

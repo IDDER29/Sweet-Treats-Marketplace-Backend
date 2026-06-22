@@ -3,9 +3,13 @@ import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { setupSwagger } from './common/swagger';
+import { initSentry } from './observability/sentry';
 import helmet from 'helmet';
 
 async function bootstrap() {
+  // Initialise error tracking before anything else (no-op without SENTRY_DSN).
+  initSentry();
+
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
     bufferLogs: true,

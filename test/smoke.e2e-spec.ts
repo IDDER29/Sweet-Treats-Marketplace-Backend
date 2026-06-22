@@ -77,6 +77,13 @@ describe('Smoke / integration (e2e)', () => {
         .expect(200);
       expect(passed.headers['x-request-id']).toBe('trace-abc-123');
     });
+
+    it('exposes Prometheus metrics (RED + process)', async () => {
+      const res = await request(http).get('/metrics').expect(200);
+      expect(res.text).toContain('http_request_duration_seconds');
+      expect(res.text).toContain('orders_created_total');
+      expect(res.text).toContain('process_cpu_user_seconds_total');
+    });
   });
 
   describe('Customer auth (JWT)', () => {

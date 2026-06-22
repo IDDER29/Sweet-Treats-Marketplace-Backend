@@ -36,6 +36,7 @@ import { CustomOrderModule } from './custom-order/custom-order.module';
 import { CustomOrderRequest } from './custom-order/entities/custom-order-request.entity';
 import { AuditModule } from './audit/audit.module';
 import { AuditLog } from './audit/entities/audit-log.entity';
+import { ObservabilityModule } from './observability/observability.module';
 @Module({
   imports: [
     // Import ConfigModule to load environment variables
@@ -44,6 +45,8 @@ import { AuditLog } from './audit/entities/audit-log.entity';
     }),
     // Structured logging (Pino) with per-request correlation ids
     LoggerModule.forRoot(loggerConfig),
+    // Metrics (/metrics) + Sentry error capture (global interceptors)
+    ObservabilityModule,
     // Configure TypeOrmModule using environment variables
     TypeOrmModule.forRoot({
       type: 'postgres',
