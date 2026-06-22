@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
+import { LoggerModule } from 'nestjs-pino';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { loggerConfig } from './common/logger.config';
+import { HealthModule } from './health/health.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { BusinessModule } from './business/business.module';
@@ -37,6 +40,8 @@ import { CustomOrderRequest } from './custom-order/entities/custom-order-request
     ConfigModule.forRoot({
       isGlobal: true, // Makes the config module globally available
     }),
+    // Structured logging (Pino) with per-request correlation ids
+    LoggerModule.forRoot(loggerConfig),
     // Configure TypeOrmModule using environment variables
     TypeOrmModule.forRoot({
       type: 'postgres',
@@ -82,6 +87,7 @@ import { CustomOrderRequest } from './custom-order/entities/custom-order-request
     AnalyticsModule,
     MailModule,
     CustomOrderModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [

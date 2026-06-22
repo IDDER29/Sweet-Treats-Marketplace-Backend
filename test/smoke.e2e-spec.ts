@@ -57,6 +57,25 @@ describe('Smoke / integration (e2e)', () => {
     expect(app).toBeDefined();
   });
 
+  describe('Observability', () => {
+    it('reports readiness with a database check', async () => {
+      const res = await request(http).get('/health/ready').expect(200);
+      expect(res.body.status).toBe('ok');
+      expect(res.body.details.database.status).toBe('up');
+    });
+
+    it('echoes a correlation id and honours an inbound one', async () => {
+      const generated = await request(http).get('/health/live').expect(200);
+      expect(generated.headers['x-request-id']).toBeDefined();
+
+      const passed = await request(http)
+        .get('/health/live')
+        .set('x-request-id', 'trace-abc-123')
+        .expect(200);
+      expect(passed.headers['x-request-id']).toBe('trace-abc-123');
+    });
+  });
+
   describe('Customer auth (JWT)', () => {
     it('registers a customer without optional address/phone', async () => {
       const res = await request(http)
