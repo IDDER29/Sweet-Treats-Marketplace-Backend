@@ -88,9 +88,8 @@ export class ReviewService {
     return reviews.map((review) => this.toResponse(review));
   }
 
-  // Keeps the cached Product.rating / reviewCount in sync. Product.rating is an
-  // int column, so the average is rounded (storing a decimal average would
-  // require widening that column).
+  // Keeps the cached Product.rating / reviewCount in sync. Product.rating is a
+  // decimal(3,2) column, so the average is stored to two decimal places.
   private async recalculateProductRating(productId: string) {
     const reviews = await this.reviewRepository.find({
       where: { product: { id: productId } },
@@ -102,7 +101,7 @@ export class ReviewService {
         : reviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount;
 
     await this.productRepository.update(productId, {
-      rating: Math.round(average),
+      rating: Number(average.toFixed(2)),
       reviewCount,
     });
   }

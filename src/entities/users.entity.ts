@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
 } from 'typeorm';
 
 export enum UserRole {
@@ -41,6 +42,12 @@ export class Users {
 
   @UpdateDateColumn({ type: 'timestamp' })
   modified_at: Date;
+
+  // Soft-delete marker. Account deletion sets this instead of removing the row,
+  // so order/review history is preserved and the FK constraints are never hit.
+  // TypeORM excludes soft-deleted rows from finds by default (e.g. login).
+  @DeleteDateColumn({ type: 'timestamp', nullable: true })
+  deleted_at?: Date;
 
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
   role: UserRole;

@@ -106,7 +106,9 @@ export class Product {
   @Column({ type: 'varchar', length: 100, nullable: true })
   unitLabel: string; // e.g. "cookies", "pack of 6"
 
-  @Column({ type: 'int', default: 0 })
+  // Cached average rating (1-5). Decimal so the average keeps one/two decimals
+  // instead of being rounded to a whole star.
+  @Column({ type: 'decimal', precision: 3, scale: 2, default: 0 })
   rating: number;
 
   @Column({ type: 'int', default: 0 })
@@ -122,6 +124,7 @@ export class Product {
   @Column('text', { array: true, default: [] })
   options: string[];
 
+  @Index()
   @ManyToOne(() => Business, (business) => business.products)
   business: Business;
 

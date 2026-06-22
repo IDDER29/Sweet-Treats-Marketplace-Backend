@@ -28,8 +28,13 @@ export class StorageService {
     file: Express.Multer.File,
     businessId: string,
   ): Promise<{ url: string; key: string; name: string }> {
-    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!allowedMimes.includes(file.mimetype)) {
+    const mimeToExt: Record<string, string> = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/webp': 'webp',
+    };
+    const ext = mimeToExt[file.mimetype];
+    if (!ext) {
       throw new BadRequestException(
         'Only JPEG, PNG, and WebP images are allowed',
       );
@@ -38,7 +43,8 @@ export class StorageService {
       throw new BadRequestException('Image must be under 5MB');
     }
 
-    const ext = file.originalname.split('.').pop()?.toLowerCase() || 'jpg';
+    // Extension is derived from the validated mimetype, never the client-supplied
+    // filename, so the object key can't be influenced by a crafted name.
     const key = `products/${businessId}/${randomUUID()}.${ext}`;
 
     await this.s3.send(

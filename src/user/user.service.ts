@@ -102,7 +102,11 @@ export class UsersService {
   }
 
   async deleteAccount(userId: string) {
-    await this.usersRepository.delete(userId);
+    // Soft-delete: preserves order/review history and avoids FK violations.
+    const result = await this.usersRepository.softDelete(userId);
+    if (result.affected === 0) {
+      throw new NotFoundException('User not found');
+    }
     return { message: 'Account deleted successfully' };
   }
 

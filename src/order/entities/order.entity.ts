@@ -23,6 +23,7 @@ export enum OrderStatus {
 
 @Entity()
 @Index('idx_order_business_created', ['business', 'createdAt'])
+@Index('idx_order_customer_created', ['customer', 'createdAt'])
 @Index('idx_order_status', ['status'])
 export class Order {
   @PrimaryGeneratedColumn('uuid')

@@ -57,116 +57,87 @@ Status legend: ✅ done in this session · 🔜 recommended next · 🧭 larger/
 
 ---
 
-## 🔜 Recommended next (high value, contained)
+## ✅ Fixed in this session — wave 2 (the "recommended next" list)
 
-### 1. Enforce per-customer discount limits  ·  `order.service.ts`, `discount.service.ts`
-`maxUsesPerCustomer` is currently **not enforced**: checkout increments
-`DiscountCode.usedCount` but never writes a `DiscountCodeUsage` row, so the
-per-customer check always sees 0. Inside the checkout transaction, after applying
-a code: (a) count this customer's `DiscountCodeUsage` for the code and reject if
-`>= maxUsesPerCustomer`; (b) insert a `DiscountCodeUsage` row. Decrement/clean it
-up in `releaseOrderResources` alongside `usedCount`. The unused
-`DiscountService.applyDiscount` should be removed or made the single source of truth.
-
-### 2. Single-use password-reset tokens  ·  `user.service.ts`
-Reset tokens are JWTs reusable for the full 1h window. Add a `passwordChangedAt`
-column (or a used-token store) and reject a reset token issued before the last
-password change. Cheapest version: include `pwdVersion` in the token and bump it
-on every password change.
-
-### 3. FK indexes (query performance)  ·  entity files
-Add `@Index()` to frequently-filtered FKs and lookups:
-- `order.entity.ts` — `customer` (customer order history scans the table).
-- `product.entity.ts` — `business` (storefront-by-business).
-- `review.entity.ts` — `product` and `user`.
-- `business.entity.ts` — `email` (login lookup).
-After adding, regenerate an **incremental** migration (`npm run migration:generate
--- src/migrations/AddIndexes`) against a DB at InitialSchema state.
-
-### 4. Account deletion strategy  ·  `user.service.ts`, entities
-`deleteAccount` hard-deletes; with related orders/reviews it will either fail on
-FK constraints or (if cascades are added) destroy order history. **Do not blanket
-`onDelete: CASCADE`.** Prefer **soft-delete** (`deletedAt` + filter) for
-`Users`/`Business`, keeping financial/order records intact. Decide an explicit
-`onDelete` per relation: `RESTRICT` for order/payment history, `CASCADE` only for
-truly dependent rows (e.g. `DiscountCodeUsage`).
-
-### 5. Bound & validate query params  ·  admin / analytics / product controllers
-- Admin `getAllBusinesses/Users/Orders` and `ProductQueryDto`: cap `limit`
-  (`@Max(100)`), floor `page` (`@Min(1)`), and use a shared `PaginationDto`.
-- `analytics.controller.ts`: validate `from`/`to` with `@IsDateString()` via a DTO
-  instead of passing raw strings to `new Date()`.
-
-### 6. Money handling hardening  ·  `payment.service.ts`, `order.service.ts`
-Columns are correctly `decimal(10,2)`, but JS `Number` math + the `* 100` pence
-conversion for Stripe risks rounding. Use integer minor units (or `decimal.js`)
-for the Stripe amount, and assert the payment-intent amount equals the stored
-`order.totalAmount` before charging.
-
-### 7. Stripe webhook idempotency  ·  `payment.service.ts`
-Two concurrent `payment_intent.succeeded` deliveries can both pass the
-`status !== SUCCEEDED` check. Process the webhook in a transaction with a row lock
-on the payment, or dedupe on the Stripe event id.
+- **Per-customer discount limits enforced** — checkout now records a
+  `DiscountCodeUsage` row and rejects past `maxUsesPerCustomer`; cancel/refund
+  removes it. `order.service.ts`.
+- **Single-use password-reset tokens** — signed with a per-user secret bound to
+  the current password hash, so a token dies once the password changes.
+  `user.service.ts`.
+- **FK indexes added** — `order(customer, createdAt)`, `product(business)`,
+  `review(product)`, unique `review(user, product)`, `business(email)`.
+- **Account deletion is now soft-delete** (`@DeleteDateColumn` on `Users`;
+  `softDelete()`), preserving order/review history and avoiding the FK dilemma —
+  **not** blanket cascade.
+- **Query params bounded** — shared `PaginationQueryDto` for admin lists,
+  validated `AnalyticsQueryDto` (dates + capped limit), product `limit` ≤ 100.
+- **Stripe webhook is race-safe** — atomic conditional UPDATE claims the
+  PAID transition. `payment.service.ts`.
+- **Order FSM** lists `DELIVERED`/`CANCELLED` as explicit terminal states.
+- **`product.rating` widened to `decimal(3,2)`** (no longer rounds to whole
+  stars); `business.updatedAt` added.
+- **Category create → 409** on unique violation.
+- **Upload key extension derived from the validated mimetype**, never the
+  client filename.
+- **DTO bounds** on review comment, suspend reason, hygiene date, custom-order
+  servings, quote price/notes; **percentage discounts clamped to subtotal**.
+- New migration `*-AddIndexesSoftDeleteRating.ts` (generated + verified against a
+  DB at InitialSchema state, edited to widen `rating` in place so existing data
+  is preserved). e2e config pinned to `maxWorkers: 1` to avoid a concurrent-
+  `synchronize` race between the two e2e suites.
 
 ---
 
-## 🧭 Larger / strategic
+## 🔜 Still recommended (contained)
 
-### 8. Remove the dead duplicate entity set
+### Money handling end-to-end  ·  `payment.service.ts`, `order.service.ts`
+Columns are correctly `decimal(10,2)` and the Stripe amount is derived from the
+frozen `order.totalAmount` (so it can't drift from client input), but the math
+still goes through JS `Number`. For full safety, carry money as integer minor
+units (or `decimal.js`) through checkout and the Stripe conversion, and assert
+the intent amount equals the stored total before charging.
+
+### Validate percentage discount value at creation  ·  `discount.service.ts`
+The checkout already clamps a >100% code, but rejecting `value > 100` for
+`PERCENTAGE` at creation time gives a clearer error (the DTO can't do it alone
+because `FIXED_AMOUNT` legitimately exceeds 100).
+
+---
+
+## 🧭 Larger / strategic (unchanged — own PRs)
+
+### Remove the dead duplicate entity set
 `src/entities/*` (snake_case `Businesses`, `Products`, `Orders`, `OrderItems`,
 `Payments`, `Reviews`, `Deliveries`, `DeliveryPerson`, `BusinessOwners`) are
-schema-only scaffolding — only `Users` is used. They are registered in
+schema-only scaffolding — only `Users` is used, yet they are registered in
 `app.module.ts`, so the DB carries duplicate tables (`business` **and**
-`businesses`, etc.). Remove the unused entities + their `app.module` registrations,
-keep `Users`, and ship a migration that drops the dead tables. Reduces confusion
-and storage; eliminates "which table is canonical?" risk. (Do this deliberately,
-with a backup, as it's a destructive migration.)
+`businesses`, etc.). Remove the unused entities + their registrations, keep
+`Users`, and ship a migration dropping the dead tables. Destructive — own PR,
+backup first.
 
-### 9. Order status state machine  ·  `order.service.ts`
-Make `DELIVERED` an explicit terminal state in `validTransitions`, and route the
-refund-driven cancellation through the same transition validation so there is one
-authority for status changes.
-
-### 10. NestJS 10 → 11 upgrade
+### NestJS 10 → 11 upgrade
 Clears the remaining high advisories (`@nestjs/platform-express`/`multer`, plus
-dev-tooling `glob`/`tmp`/`picomatch`/`@nestjs/cli`). This is a framework major —
-do it on its own branch with a full regression pass, not as a security patch.
+dev-tooling `glob`/`tmp`/`picomatch`/`@nestjs/cli`). Framework major — own branch,
+full regression pass.
 
-### 11. Schema niceties (with the next migration)
-- `product.rating` is `int` (rounds the average); widen to `decimal(3,2)`.
-- Add `CHECK (price >= 0)` / `CHECK (totalAmount >= 0)` constraints.
-- Add `@UpdateDateColumn updatedAt` to `Business` (audit suspension changes).
+### `CHECK` constraints on money columns
+Add `CHECK (price >= 0)` / `CHECK ("totalAmount" >= 0)` in the next migration
+(belt-and-braces over the DTO/service validation).
 
-### 12. DTO bounds & validation polish
-- `submit-quote.dto.ts`: `@Max` on `quotedPrice`, `@MaxLength` on notes, ensure
-  `quoteExpiresAt` is in the future.
-- `create-custom-order.dto.ts`: `@Max` on `servings`.
-- `suspend-business.dto.ts`: `@MaxLength` on `reason`.
-- `verify-hygiene.dto.ts`: `@IsDateString()` on the expiry.
-- `create-review.dto.ts`: `@MaxLength` on `comment`.
-- Validate percentage discount value `<= 100` at creation time (defence-in-depth
-  on top of the checkout clamp).
-
-### 13. Category unique-conflict handling  ·  `category.service.ts`
-Catch the unique-violation on `name`/`slug` and throw `ConflictException` (409)
-instead of surfacing a raw DB error.
-
-### 14. Upload hardening  ·  `upload`, `storage.service.ts`
-Validate the file extension against an explicit whitelist (`jpg/jpeg/png/webp`)
-and enforce a max size.
-
-### 15. Tests & observability
+### Tests & observability
 - No tests for `admin`, `analytics`, `upload`, `custom-order`, `category`, `mail`.
-  Add e2e coverage (the `test/smoke.e2e-spec.ts` harness is a good template).
+  Extend the `test/smoke.e2e-spec.ts` harness (now also covers the security
+  regressions and is the template to follow).
 - The legacy unit specs under `src/**/*.spec.ts` are stale (wrong export names,
-  missing DTO fields) — fix or delete them so `npm test` is meaningful.
+  missing DTO fields) — fix or delete so `npm test` is meaningful.
 - Add audit logging on admin actions and structured request logging.
 
 ---
 
 ## Suggested order of execution
-1. **🔜 1–7** — contained security/correctness wins, each independently shippable.
-2. **🧭 9, 11, 12, 13, 14** — fold the schema changes into one migration.
-3. **🧭 8** — dead-entity removal (own PR, destructive migration, backup first).
-4. **🧭 10** — Nest 11 upgrade (own branch, full regression).
-5. **🧭 15** — backfill tests alongside each change above.
+1. **🔜 Still recommended** — money handling + creation-time discount validation.
+2. **🧭 CHECK constraints** — fold into the next migration.
+3. **🧭 Dead-entity removal** — own PR, destructive migration, backup first.
+4. **🧭 Nest 11 upgrade** — own branch, full regression.
+5. **🧭 Tests** — backfill alongside each change above.

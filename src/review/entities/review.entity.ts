@@ -5,11 +5,16 @@ import {
   ManyToOne,
   JoinColumn,
   CreateDateColumn,
+  Index,
 } from 'typeorm';
 import { Users } from '../../entities/users.entity';
 import { Product } from '../../product/entities/product.entity';
 
 @Entity()
+// One review per customer per product (DB-level guard behind the service check).
+@Index('idx_review_user_product', ['user', 'product'], { unique: true })
+// Listing reviews for a product is the hot path.
+@Index('idx_review_product', ['product'])
 export class Review {
   @PrimaryGeneratedColumn('uuid')
   id: string;

@@ -1,4 +1,12 @@
-import { Entity, Column, PrimaryGeneratedColumn, OneToMany, CreateDateColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  OneToMany,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+} from 'typeorm';
 import { Product } from '../../product/entities/product.entity'; // Import Product entity
 
 @Entity()
@@ -15,6 +23,7 @@ export class Business {
   @Column()
   businessName: string;
 
+  @Index()
   @Column({ unique: true })
   email: string;
 
@@ -53,6 +62,9 @@ export class Business {
 
   @CreateDateColumn()
   createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 
   // A business can have multiple products
   @OneToMany(() => Product, (product) => product.business)
