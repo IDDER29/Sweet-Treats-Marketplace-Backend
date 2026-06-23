@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Param,
+  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
@@ -19,8 +20,15 @@ export class MessagingController {
   constructor(private readonly messaging: MessagingService) {}
 
   @Get()
-  list(@Request() req) {
-    return this.messaging.listForCustomer(req.user.userId);
+  list(
+    @Request() req,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.messaging.listForCustomer(req.user.userId, {
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Throttle({ short: { limit: 20, ttl: 60000 } })

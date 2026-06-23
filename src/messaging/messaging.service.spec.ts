@@ -21,6 +21,7 @@ describe('MessagingService', () => {
       save: jest.fn(async (x) => ({ id: 'c1', ...x })),
       update: jest.fn(),
       find: jest.fn().mockResolvedValue([]),
+      findAndCount: jest.fn().mockResolvedValue([[], 0]),
     };
     messageRepo = {
       create: jest.fn((x) => x),
@@ -95,5 +96,28 @@ describe('MessagingService', () => {
     await expect(
       service.sendFromBusiness('other-biz', 'c1', 'x'),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('paginates the customer conversation list with bounded page size', async () => {
+    conversationRepo.findAndCount.mockResolvedValue([
+      [{ id: 'c1', business: { id: 'b1' } }],
+      1,
+    ]);
+    const res: any = await service.listForCustomer('u1', {
+      page: 1,
+      limit: 5,
+    });
+    expect(res).toMatchObject({ total: 1, page: 1, limit: 5, totalPages: 1 });
+    expect(res.data).toHaveLength(1);
+    expect(conversationRepo.findAndCount).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 0, take: 5 }),
+    );
+  });
+
+  it('clamps an over-large limit to 100', async () => {
+    await service.listForBusiness('b1', { limit: 10000 });
+    expect(conversationRepo.findAndCount).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 100 }),
+    );
   });
 });

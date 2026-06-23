@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Param,
+  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
@@ -20,8 +21,15 @@ export class BusinessMessagingController {
   constructor(private readonly messaging: MessagingService) {}
 
   @Get()
-  list(@Request() req) {
-    return this.messaging.listForBusiness(req.user.businessId);
+  list(
+    @Request() req,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.messaging.listForBusiness(req.user.businessId, {
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Get(':id/messages')

@@ -6,6 +6,11 @@ import { Message, SenderType } from './entities/message.entity';
 import { Business } from '../business/entities/business.entity';
 import { NotificationService } from '../notification/notification.service';
 
+interface PageOpts {
+  page?: number;
+  limit?: number;
+}
+
 @Injectable()
 export class MessagingService {
   constructor(
@@ -68,24 +73,37 @@ export class MessagingService {
     return message;
   }
 
-  listForCustomer(customerId: string) {
-    return this.conversationRepo
-      .find({
-        where: { customer: { user_id: customerId } },
-        relations: ['business'],
-        order: { lastMessageAt: 'DESC' },
-      })
-      .then((rows) => rows.map((c) => this.toSummary(c)));
+  listForCustomer(customerId: string, opts: PageOpts = {}) {
+    return this.paginate(
+      { customer: { user_id: customerId } },
+      ['business'],
+      opts,
+    );
   }
 
-  listForBusiness(businessId: string) {
-    return this.conversationRepo
-      .find({
-        where: { business: { id: businessId } },
-        relations: ['customer'],
-        order: { lastMessageAt: 'DESC' },
-      })
-      .then((rows) => rows.map((c) => this.toSummary(c)));
+  listForBusiness(businessId: string, opts: PageOpts = {}) {
+    return this.paginate({ business: { id: businessId } }, ['customer'], opts);
+  }
+
+  // Bounded, newest-first conversation page for one participant. Caps the page
+  // size so a heavy account can't pull every thread in a single request.
+  private async paginate(where: any, relations: string[], opts: PageOpts) {
+    const page = Math.max(1, Number(opts.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(opts.limit) || 20));
+    const [rows, total] = await this.conversationRepo.findAndCount({
+      where,
+      relations,
+      order: { lastMessageAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    return {
+      data: rows.map((c) => this.toSummary(c)),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async getMessages(

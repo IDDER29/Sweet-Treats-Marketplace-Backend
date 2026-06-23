@@ -635,7 +635,10 @@ describe('Smoke / integration (e2e)', () => {
         .get('/seller/conversations')
         .set('Authorization', `Bearer ${businessToken}`)
         .expect(200);
-      expect(list.body.some((c: any) => c.id === conversationId)).toBe(true);
+      expect(typeof list.body.total).toBe('number');
+      expect(list.body.data.some((c: any) => c.id === conversationId)).toBe(
+        true,
+      );
 
       const reply = await request(http)
         .post(`/seller/conversations/${conversationId}/messages`)
