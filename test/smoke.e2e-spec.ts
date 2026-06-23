@@ -577,6 +577,50 @@ describe('Smoke / integration (e2e)', () => {
     });
   });
 
+  describe('Favorites', () => {
+    const auth = () => ({ Authorization: `Bearer ${customerToken}` });
+
+    it('favorites a product, lists it, then unfavorites', async () => {
+      const add = await request(http)
+        .post(`/favorites/products/${productId}`)
+        .set(auth())
+        .expect(201);
+      expect(add.body.favorited).toBe(true);
+
+      const list = await request(http)
+        .get('/favorites')
+        .set(auth())
+        .expect(200);
+      expect(list.body.products.some((p: any) => p.id === productId)).toBe(
+        true,
+      );
+
+      const rm = await request(http)
+        .delete(`/favorites/products/${productId}`)
+        .set(auth())
+        .expect(200);
+      expect(rm.body.favorited).toBe(false);
+    });
+
+    it('follows and unfollows a shop', async () => {
+      const shops = await request(http).get('/shops').expect(200);
+      const businessId = shops.body.data[0].id;
+      const follow = await request(http)
+        .post(`/favorites/shops/${businessId}`)
+        .set(auth())
+        .expect(201);
+      expect(follow.body.following).toBe(true);
+      await request(http)
+        .delete(`/favorites/shops/${businessId}`)
+        .set(auth())
+        .expect(200);
+    });
+
+    it('requires auth', async () => {
+      await request(http).get('/favorites').expect(401);
+    });
+  });
+
   describe('Seller storefront', () => {
     let shopSlug: string;
 

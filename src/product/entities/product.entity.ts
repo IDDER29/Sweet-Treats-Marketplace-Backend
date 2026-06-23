@@ -116,6 +116,10 @@ export class Product {
   @Column({ type: 'int', default: 0 })
   reviewCount: number;
 
+  // Number of customers who favorited this product (social proof).
+  @Column({ type: 'int', default: 0 })
+  favoriteCount: number;
+
   @Column('jsonb', { array: false, default: [] })
   images: {
     url: string;

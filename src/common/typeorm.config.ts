@@ -16,6 +16,8 @@ import { Cart } from '../cart/entities/cart.entity';
 import { CartItem } from '../cart/entities/cart-item.entity';
 import { Address } from '../address/entities/address.entity';
 import { Notification } from '../notification/entities/notification.entity';
+import { Favorite } from '../favorites/entities/favorite.entity';
+import { ShopFollow } from '../favorites/entities/shop-follow.entity';
 
 const entities = [
   Business,
@@ -35,6 +37,8 @@ const entities = [
   CartItem,
   Address,
   Notification,
+  Favorite,
+  ShopFollow,
 ];
 
 interface Endpoint {

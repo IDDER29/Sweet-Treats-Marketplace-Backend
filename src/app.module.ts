@@ -31,6 +31,7 @@ import { CartModule } from './cart/cart.module';
 import { AddressModule } from './address/address.module';
 import { ShopModule } from './shop/shop.module';
 import { NotificationModule } from './notification/notification.module';
+import { FavoritesModule } from './favorites/favorites.module';
 import { AuditModule } from './audit/audit.module';
 import { ObservabilityModule } from './observability/observability.module';
 import { buildTypeOrmOptions } from './common/typeorm.config';
@@ -90,6 +91,7 @@ import { IdempotencyInterceptor } from './common/idempotency/idempotency.interce
     AddressModule,
     ShopModule,
     NotificationModule,
+    FavoritesModule,
     HealthModule,
     AuditModule,
   ],
