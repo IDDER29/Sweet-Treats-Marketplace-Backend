@@ -529,6 +529,44 @@ describe('Smoke / integration (e2e)', () => {
     });
   });
 
+  describe('Seller storefront', () => {
+    let shopSlug: string;
+
+    it('lets the seller edit their public storefront', async () => {
+      const res = await request(http)
+        .patch('/business/profile')
+        .set('Authorization', `Bearer ${businessToken}`)
+        .send({
+          description: 'Best cakes in town',
+          logoUrl: 'http://cdn.example/logo.png',
+          businessHours: { mon: '9-17', sun: 'closed' },
+        })
+        .expect(200);
+      expect(res.body.description).toBe('Best cakes in town');
+      expect(res.body.slug).toBeDefined();
+      expect(res.body.password).toBeUndefined();
+      shopSlug = res.body.slug;
+    });
+
+    it('serves the public storefront with the active catalog', async () => {
+      const res = await request(http).get(`/shops/${shopSlug}`).expect(200);
+      expect(res.body.businessName).toBeDefined();
+      expect(res.body.description).toBe('Best cakes in town');
+      expect(Array.isArray(res.body.products)).toBe(true);
+      expect(res.body.password).toBeUndefined();
+    });
+
+    it('browses shops publicly', async () => {
+      const res = await request(http).get('/shops').expect(200);
+      expect(Array.isArray(res.body.data)).toBe(true);
+      expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('404s an unknown shop slug', async () => {
+      await request(http).get('/shops/no-such-shop-xyz').expect(404);
+    });
+  });
+
   describe('Security regression guards', () => {
     it('never returns the password hash on the profile', async () => {
       const res = await request(http)

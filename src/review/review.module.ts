@@ -6,11 +6,12 @@ import { ReviewController } from './review.controller';
 import { Review } from './entities/review.entity';
 import { Users } from '../entities/users.entity';
 import { Product } from '../product/entities/product.entity';
+import { Business } from '../business/entities/business.entity';
 import { Order } from '../order/entities/order.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Review, Users, Product, Order]),
+    TypeOrmModule.forFeature([Review, Users, Product, Business, Order]),
     PassportModule,
   ],
   providers: [ReviewService],

@@ -9,10 +9,13 @@ import {
   UnauthorizedException,
   InternalServerErrorException,
 } from '@nestjs/common';
+import { UseGuards, Patch, Request } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { BusinessService } from './business.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { LoginBusinessDto } from './dto/login-business.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { UpdateBusinessProfileDto } from './dto/update-business-profile.dto';
 
 @Controller('business')
 export class BusinessController {
@@ -69,6 +72,12 @@ export class BusinessController {
       }
       throw new NotFoundException('Business not found');
     }
+  }
+
+  @UseGuards(AuthGuard('business-jwt'))
+  @Patch('profile')
+  async updateProfile(@Request() req, @Body() dto: UpdateBusinessProfileDto) {
+    return this.businessService.updateProfile(req.user.businessId, dto);
   }
 
   @Post('auth/refresh')

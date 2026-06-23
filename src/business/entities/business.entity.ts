@@ -27,6 +27,32 @@ export class Business {
   @Column({ unique: true })
   email: string;
 
+  // --- Public storefront -----------------------------------------------------
+  // URL-safe handle for the public shop page (GET /shops/:slug).
+  @Index({ unique: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  slug: string;
+
+  @Column({ type: 'text', nullable: true })
+  description: string;
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  logoUrl: string;
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  bannerUrl: string;
+
+  // Opening hours, free-form per day, e.g. { mon: "9-17", sun: "closed" }.
+  @Column({ type: 'jsonb', nullable: true })
+  businessHours: Record<string, string>;
+
+  // Aggregate rating across this seller's product reviews (cached).
+  @Column({ type: 'decimal', precision: 3, scale: 2, default: 0 })
+  rating: number;
+
+  @Column({ type: 'int', default: 0 })
+  reviewCount: number;
+
   @Column()
   password: string;
 

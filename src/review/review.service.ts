@@ -9,6 +9,7 @@ import { In, Repository } from 'typeorm';
 import { Review } from './entities/review.entity';
 import { Users } from '../entities/users.entity';
 import { Product } from '../product/entities/product.entity';
+import { Business } from '../business/entities/business.entity';
 import { Order, OrderStatus } from '../order/entities/order.entity';
 import { CreateReviewDto } from './dto/create-review.dto';
 
@@ -21,6 +22,8 @@ export class ReviewService {
     private readonly usersRepository: Repository<Users>,
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
+    @InjectRepository(Business)
+    private readonly businessRepository: Repository<Business>,
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
   ) {}
@@ -35,6 +38,7 @@ export class ReviewService {
 
     const product = await this.productRepository.findOne({
       where: { id: productId },
+      relations: ['business'],
     });
     if (!product) {
       throw new NotFoundException('Product not found');
@@ -76,6 +80,9 @@ export class ReviewService {
     const saved = await this.reviewRepository.save(review);
 
     await this.recalculateProductRating(productId);
+    if (product.business?.id) {
+      await this.recalculateBusinessRating(product.business.id);
+    }
     return this.toResponse(saved);
   }
 
@@ -103,6 +110,23 @@ export class ReviewService {
     await this.productRepository.update(productId, {
       rating: Number(average.toFixed(2)),
       reviewCount,
+    });
+  }
+
+  // Seller-level rating = mean of every review across the seller's products.
+  private async recalculateBusinessRating(businessId: string) {
+    const row = await this.reviewRepository
+      .createQueryBuilder('r')
+      .innerJoin('r.product', 'p')
+      .innerJoin('p.business', 'b')
+      .select('AVG(r.rating)', 'avg')
+      .addSelect('COUNT(r.id)', 'count')
+      .where('b.id = :businessId', { businessId })
+      .getRawOne();
+
+    await this.businessRepository.update(businessId, {
+      rating: Number(Number(row?.avg ?? 0).toFixed(2)),
+      reviewCount: parseInt(row?.count ?? '0', 10) || 0,
     });
   }
 

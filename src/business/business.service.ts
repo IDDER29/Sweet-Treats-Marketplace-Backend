@@ -10,8 +10,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { CreateBusinessDto } from './dto/create-business.dto';
+import { UpdateBusinessProfileDto } from './dto/update-business-profile.dto';
 import { Business } from './entities/business.entity';
 import { RefreshTokenService } from '../auth/refresh-token.service';
+import { slugify, slugSuffix } from '../common/slug';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -51,10 +53,11 @@ export class BusinessService {
       // Hash the password securely
       const hashedPassword = await bcrypt.hash(password, this.saltRounds);
 
-      // Prepare business entity with hashed password
+      // Prepare business entity with hashed password + a unique storefront slug
       const business = this.businessRepository.create({
         ...createBusinessDto,
         password: hashedPassword,
+        slug: await this.generateUniqueSlug(createBusinessDto.businessName),
       });
 
       // Save the business entity
@@ -196,6 +199,35 @@ export class BusinessService {
 
   private signAccessToken(businessId: string): string {
     return this.jwtService.sign({ businessId, role: 'BUSINESS' });
+  }
+
+  private async generateUniqueSlug(businessName: string): Promise<string> {
+    const base = slugify(businessName) || 'shop';
+    let candidate = base;
+    // Append a short suffix on collision (a handful of attempts is plenty).
+    for (let i = 0; i < 5; i++) {
+      const taken = await this.businessRepository.findOne({
+        where: { slug: candidate },
+      });
+      if (!taken) return candidate;
+      candidate = `${base}-${slugSuffix()}`;
+    }
+    return `${base}-${slugSuffix()}`;
+  }
+
+  // Seller edits their public storefront (description, branding, hours).
+  async updateProfile(
+    businessId: string,
+    dto: UpdateBusinessProfileDto,
+  ): Promise<Partial<Business>> {
+    const business = await this.businessRepository.findOne({
+      where: { id: businessId },
+    });
+    if (!business) throw new NotFoundException('Business not found');
+    Object.assign(business, dto);
+    const saved = await this.businessRepository.save(business);
+    delete saved.password;
+    return saved;
   }
 
   private isUUID(id: string): boolean {
