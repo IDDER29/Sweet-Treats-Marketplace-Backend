@@ -64,10 +64,16 @@ describe('Smoke / integration (e2e)', () => {
   });
 
   describe('Observability', () => {
-    it('reports readiness with a database check', async () => {
+    it('reports readiness with a database check and Redis mode', async () => {
       const res = await request(http).get('/health/ready').expect(200);
       expect(res.body.status).toBe('ok');
       expect(res.body.details.database.status).toBe('up');
+      // Redis is optional and never fails readiness; its real state is surfaced
+      // via `mode` (up | degraded | disabled). The e2e stack runs with Redis.
+      expect(res.body.details.redis.status).toBe('up');
+      expect(['up', 'degraded', 'disabled']).toContain(
+        res.body.details.redis.mode,
+      );
     });
 
     it('echoes a correlation id and honours an inbound one', async () => {

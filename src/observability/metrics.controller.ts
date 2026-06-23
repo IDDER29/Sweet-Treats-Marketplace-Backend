@@ -1,12 +1,13 @@
 import { Controller, Get, Header } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
+import { SKIP_ALL_THROTTLERS } from '../common/throttler';
 import { MetricsService } from './metrics.service';
 
 /**
  * Prometheus scrape target. Public + un-throttled (scrapers poll frequently);
  * in production this path should be network-restricted to the metrics scraper.
  */
-@SkipThrottle()
+@SkipThrottle(SKIP_ALL_THROTTLERS)
 @Controller('metrics')
 export class MetricsController {
   constructor(private readonly metrics: MetricsService) {}

@@ -10,6 +10,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { APP_GUARD } from '@nestjs/core';
 import type Redis from 'ioredis';
+import { THROTTLER_TIERS, ResilientThrottlerStorage } from './common/throttler';
 import { RedisModule, REDIS_CLIENT } from './redis/redis.module';
 import { QueueModule } from './queue/queue.module';
 import { BusinessModule } from './business/business.module';
@@ -63,12 +64,14 @@ import { IdempotencyInterceptor } from './common/idempotency/idempotency.interce
       imports: [RedisModule],
       inject: [REDIS_CLIENT],
       useFactory: (redis: Redis | null) => ({
-        throttlers: [
-          { name: 'short', ttl: 1000, limit: 10 },
-          { name: 'medium', ttl: 60000, limit: 100 },
-          { name: 'long', ttl: 3600000, limit: 1000 },
-        ],
-        storage: redis ? new ThrottlerStorageRedisService(redis) : undefined,
+        throttlers: THROTTLER_TIERS,
+        // Redis-backed so limits hold across replicas, but wrapped to fail open:
+        // if Redis is down, allow requests instead of 500-ing the whole API.
+        storage: redis
+          ? new ResilientThrottlerStorage(
+              new ThrottlerStorageRedisService(redis),
+            )
+          : undefined,
         // Skip rate limiting under the test runner so functional e2e suites
         // (which make many logins) aren't throttled; prod/dev are unaffected.
         skipIf: () => process.env.NODE_ENV === 'test',

@@ -16,6 +16,7 @@ import { PaymentService } from './payment.service';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { RefundPaymentDto } from './dto/refund-payment.dto';
 import { Idempotent } from '../common/idempotency/idempotent.decorator';
+import { SKIP_ALL_THROTTLERS } from '../common/throttler';
 
 @Controller('payments')
 export class PaymentController {
@@ -29,7 +30,7 @@ export class PaymentController {
   }
 
   // Raw body required for Stripe signature verification — enabled in main.ts via rawBody: true
-  @SkipThrottle()
+  @SkipThrottle(SKIP_ALL_THROTTLERS)
   @Post('webhook')
   handleWebhook(
     @Headers('stripe-signature') signature: string,

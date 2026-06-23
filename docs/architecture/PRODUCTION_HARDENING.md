@@ -26,12 +26,24 @@ each shipped with tests + a prod-chain migration check where schema changes.
 - Paginate conversations (customer + seller) and cap page sizes (others already
   capped). Prevents a heavy account from loading everything.
 
-## PH-5 — Redis-aware readiness
-- `/health/ready` reports Redis status (degraded, not failed, since Redis is
-  optional) so orchestrators see the real picture.
+## PH-5 — Redis-aware readiness (+ two availability bugs it surfaced)
+- `/health/ready` reports Redis status (`up` | `degraded` | `disabled`) via a
+  custom indicator that NEVER fails readiness — Redis is optional, so a Redis
+  blip must not drain the load balancer. The DB stays the hard gate.
+- **Bug found & fixed — Redis outage 500'd the whole API.** The global
+  `ThrottlerGuard` used the raw Redis storage; when Redis was down `increment()`
+  threw and every request 500'd. Wrapped it in `ResilientThrottlerStorage`,
+  which **fails open** (allows the request, logs once) so rate limiting degrades
+  instead of taking the API down. Verified: with Redis killed, `/shops` and
+  `/health/ready` return 200; with Redis up, `/shops` still 429s past 10/s.
+- **Bug found & fixed — `@SkipThrottle()` was a silent no-op.** With no args it
+  only skips a throttler named `default`; our tiers are `short/medium/long`, so
+  health, metrics, and the Stripe webhook were actually being throttled. Now use
+  `@SkipThrottle(SKIP_ALL_THROTTLERS)`, derived from the tier list so it can't
+  drift. (This is why high-frequency Stripe callbacks could have hit the limit.)
 
 ## Verification gate
 `npm run build` · `npm test` · `npm run test:e2e` · check-only lint on changed
 files · migration applies in the prod chain. Update checkboxes here.
 
-Status: ✅ PH-1 ✅ PH-2 ✅ PH-3 ✅ PH-4 ⬜ PH-5
+Status: ✅ PH-1 ✅ PH-2 ✅ PH-3 ✅ PH-4 ✅ PH-5
