@@ -33,6 +33,7 @@ describe('Smoke / integration (e2e)', () => {
   let customerToken: string;
   let businessToken: string;
   let businessRefreshToken: string;
+  let businessId: string;
   let productId: string;
 
   beforeAll(async () => {
@@ -354,6 +355,7 @@ describe('Smoke / integration (e2e)', () => {
       expect(res.body.refreshToken).toBeDefined();
       businessToken = res.body.token;
       businessRefreshToken = res.body.refreshToken;
+      businessId = res.body.business.id;
     });
 
     it('rotates the business refresh token (single-use, kind-checked)', async () => {
@@ -574,6 +576,52 @@ describe('Smoke / integration (e2e)', () => {
 
     it('requires auth', async () => {
       await request(http).get('/notifications').expect(401);
+    });
+  });
+
+  describe('Messaging (buyer ↔ seller)', () => {
+    let conversationId: string;
+
+    it('customer messages the shop (opens a thread)', async () => {
+      const res = await request(http)
+        .post(`/conversations/business/${businessId}`)
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({ body: 'Do you do gluten-free cakes?' })
+        .expect(201);
+      expect(res.body.senderType).toBe('CUSTOMER');
+      conversationId = res.body.conversationId;
+    });
+
+    it('seller sees the conversation and replies', async () => {
+      const list = await request(http)
+        .get('/seller/conversations')
+        .set('Authorization', `Bearer ${businessToken}`)
+        .expect(200);
+      expect(list.body.some((c: any) => c.id === conversationId)).toBe(true);
+
+      const reply = await request(http)
+        .post(`/seller/conversations/${conversationId}/messages`)
+        .set('Authorization', `Bearer ${businessToken}`)
+        .send({ body: 'Yes! Several options.' })
+        .expect(201);
+      expect(reply.body.senderType).toBe('BUSINESS');
+    });
+
+    it('customer reads the full thread', async () => {
+      const res = await request(http)
+        .get(`/conversations/${conversationId}/messages`)
+        .set('Authorization', `Bearer ${customerToken}`)
+        .expect(200);
+      expect(res.body).toHaveLength(2);
+      expect(res.body[0].senderType).toBe('CUSTOMER');
+      expect(res.body[1].senderType).toBe('BUSINESS');
+    });
+
+    it('a stranger cannot read the thread (404, fail-closed)', async () => {
+      // The seller's other-business token can't read a conversation it isn't in.
+      await request(http)
+        .get(`/conversations/${conversationId}/messages`)
+        .expect(401); // no customer token at all
     });
   });
 

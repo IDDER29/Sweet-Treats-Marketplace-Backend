@@ -33,6 +33,7 @@ import { ShopModule } from './shop/shop.module';
 import { NotificationModule } from './notification/notification.module';
 import { FavoritesModule } from './favorites/favorites.module';
 import { DriverModule } from './driver/driver.module';
+import { MessagingModule } from './messaging/messaging.module';
 import { AuditModule } from './audit/audit.module';
 import { ObservabilityModule } from './observability/observability.module';
 import { buildTypeOrmOptions } from './common/typeorm.config';
@@ -94,6 +95,7 @@ import { IdempotencyInterceptor } from './common/idempotency/idempotency.interce
     NotificationModule,
     FavoritesModule,
     DriverModule,
+    MessagingModule,
     HealthModule,
     AuditModule,
   ],

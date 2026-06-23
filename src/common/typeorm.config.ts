@@ -19,6 +19,8 @@ import { Notification } from '../notification/entities/notification.entity';
 import { Favorite } from '../favorites/entities/favorite.entity';
 import { ShopFollow } from '../favorites/entities/shop-follow.entity';
 import { Driver } from '../driver/entities/driver.entity';
+import { Conversation } from '../messaging/entities/conversation.entity';
+import { Message } from '../messaging/entities/message.entity';
 
 const entities = [
   Business,
@@ -41,6 +43,8 @@ const entities = [
   Favorite,
   ShopFollow,
   Driver,
+  Conversation,
+  Message,
 ];
 
 interface Endpoint {
