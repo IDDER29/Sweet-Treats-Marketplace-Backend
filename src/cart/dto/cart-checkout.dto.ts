@@ -14,6 +14,18 @@ export class CartCheckoutDto {
   @IsOptional()
   deliveryAddress?: string;
 
+  @IsUUID()
+  @IsOptional()
+  addressId?: string;
+
+  @IsString()
+  @IsOptional()
+  contactPhone?: string;
+
+  @IsString()
+  @IsOptional()
+  giftMessage?: string;
+
   @IsString()
   @IsOptional()
   notes?: string;

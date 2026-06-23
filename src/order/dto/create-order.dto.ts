@@ -32,6 +32,19 @@ export class CreateOrderDto {
   @IsOptional()
   deliveryAddress?: string;
 
+  // A saved Address id; resolved + snapshotted server-side at checkout.
+  @IsUUID()
+  @IsOptional()
+  addressId?: string;
+
+  @IsString()
+  @IsOptional()
+  contactPhone?: string;
+
+  @IsString()
+  @IsOptional()
+  giftMessage?: string;
+
   @IsString()
   @IsOptional()
   notes?: string;

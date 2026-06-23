@@ -16,6 +16,7 @@ import {
   DiscountType,
 } from '../discount/entities/discount-code.entity';
 import { DiscountCodeUsage } from '../discount/entities/discount-code-usage.entity';
+import { Address } from '../address/entities/address.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { MailQueueService } from '../mail/mail-queue.service';
 import { assertOwnership } from '../common/authorization/ownership.util';
@@ -36,10 +37,34 @@ export class OrderService {
     private readonly deliverySlotRepository: Repository<DeliverySlot>,
     @InjectRepository(DiscountCode)
     private readonly discountCodeRepository: Repository<DiscountCode>,
+    @InjectRepository(Address)
+    private readonly addressRepository: Repository<Address>,
     private readonly dataSource: DataSource,
     private readonly mailQueue: MailQueueService,
     private readonly metrics: MetricsService,
   ) {}
+
+  // Resolve a saved address id into a snapshot string + phone, fail-closed if it
+  // isn't owned by this customer.
+  private async resolveAddress(
+    customerId: string,
+    addressId: string,
+  ): Promise<{ snapshot: string; phone: string | null }> {
+    const a = await this.addressRepository.findOne({
+      where: { id: addressId, user: { user_id: customerId } },
+    });
+    if (!a) throw new NotFoundException('Address not found');
+    const snapshot = [
+      a.recipientName,
+      a.line1,
+      a.line2,
+      `${a.city} ${a.postcode}`.trim(),
+      a.country,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    return { snapshot, phone: a.phone ?? null };
+  }
 
   // Create an order ("checkout") from a cart payload. Prices are always read
   // from the database, never trusted from the client.
@@ -251,13 +276,25 @@ export class OrderService {
         (itemsTotal - discountAmount + (dto.deliveryFee ?? 0)).toFixed(2),
       );
 
+      // Resolve a saved address (if supplied) into a snapshot + phone.
+      let deliveryAddress = dto.deliveryAddress ?? customer.address;
+      let contactPhone = dto.contactPhone ?? null;
+      if (dto.addressId) {
+        const resolved = await this.resolveAddress(customerId, dto.addressId);
+        deliveryAddress = resolved.snapshot;
+        contactPhone = contactPhone ?? resolved.phone;
+      }
+
       const order = queryRunner.manager.create(Order, {
         customer,
         business,
         items,
         totalAmount,
         status: OrderStatus.PENDING,
-        deliveryAddress: dto.deliveryAddress ?? customer.address,
+        deliveryAddress,
+        deliveryAddressId: dto.addressId ?? null,
+        contactPhone,
+        giftMessage: dto.giftMessage ?? null,
         notes: dto.notes,
         requestedDeliveryDate: dto.requestedDeliveryDate,
         deliverySlotId: dto.deliverySlotId,

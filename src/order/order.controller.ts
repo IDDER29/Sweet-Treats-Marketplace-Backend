@@ -37,10 +37,7 @@ export class OrderController {
 
   @UseGuards(AuthGuard('business-jwt'))
   @Get('business/:businessId')
-  findForBusiness(
-    @Request() req,
-    @Param('businessId') businessId: string,
-  ) {
+  findForBusiness(@Request() req, @Param('businessId') businessId: string) {
     return this.orderService.findForBusiness(businessId, req.user.businessId);
   }
 

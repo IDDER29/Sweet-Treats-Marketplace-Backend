@@ -14,6 +14,7 @@ import { CustomOrderRequest } from '../custom-order/entities/custom-order-reques
 import { AuditLog } from '../audit/entities/audit-log.entity';
 import { Cart } from '../cart/entities/cart.entity';
 import { CartItem } from '../cart/entities/cart-item.entity';
+import { Address } from '../address/entities/address.entity';
 
 const entities = [
   Business,
@@ -31,6 +32,7 @@ const entities = [
   AuditLog,
   Cart,
   CartItem,
+  Address,
 ];
 
 interface Endpoint {

@@ -486,6 +486,49 @@ describe('Smoke / integration (e2e)', () => {
     });
   });
 
+  describe('Address book', () => {
+    let addressId: string;
+
+    it('creates an address (first one is the default)', async () => {
+      const res = await request(http)
+        .post('/addresses')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({
+          recipientName: 'Jane Doe',
+          line1: '5 Baker St',
+          city: 'London',
+          postcode: 'NW1 6XE',
+          phone: '555-0142',
+        })
+        .expect(201);
+      expect(res.body.isDefault).toBe(true);
+      expect(res.body.country).toBe('GB');
+      addressId = res.body.id;
+    });
+
+    it('checks out using the saved address (snapshotted onto the order)', async () => {
+      const order = await request(http)
+        .post('/orders')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({ items: [{ productId, quantity: 1 }], addressId })
+        .expect(201);
+      const detail = await request(http)
+        .get(`/orders/${order.body.id}`)
+        .set('Authorization', `Bearer ${customerToken}`)
+        .expect(200);
+      expect(detail.body.deliveryAddress).toContain('Jane Doe');
+      expect(detail.body.deliveryAddress).toContain('5 Baker St');
+    });
+
+    it('lists the saved addresses', async () => {
+      const res = await request(http)
+        .get('/addresses')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .expect(200);
+      expect(res.body.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
   describe('Security regression guards', () => {
     it('never returns the password hash on the profile', async () => {
       const res = await request(http)

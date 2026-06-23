@@ -51,8 +51,19 @@ export class Order {
   @Column({ type: 'enum', enum: OrderStatus, default: OrderStatus.PENDING })
   status: OrderStatus;
 
+  // Snapshot of the delivery address text at order time (kept even if the saved
+  // Address is later edited/deleted). `deliveryAddressId` links the source.
   @Column({ type: 'text', nullable: true })
   deliveryAddress: string;
+
+  @Column({ type: 'uuid', nullable: true })
+  deliveryAddressId: string;
+
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  contactPhone: string;
+
+  @Column({ type: 'text', nullable: true })
+  giftMessage: string;
 
   @Column({ type: 'text', nullable: true })
   notes: string;
