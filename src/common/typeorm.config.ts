@@ -88,6 +88,13 @@ export function buildTypeOrmOptions(): TypeOrmModuleOptions {
     synchronize: process.env.NODE_ENV !== 'production',
     migrations: ['dist/migrations/*.js'],
     migrationsRun: process.env.NODE_ENV === 'production',
+    // Bound the connection pool so N API replicas can't exhaust Postgres, and
+    // cap query time so one slow/runaway statement can't pin a connection.
+    extra: {
+      max: parseInt(process.env.DB_POOL_SIZE, 10) || 10,
+      statement_timeout:
+        parseInt(process.env.DB_STATEMENT_TIMEOUT_MS, 10) || 10000,
+    },
   };
 
   const master: Endpoint = {

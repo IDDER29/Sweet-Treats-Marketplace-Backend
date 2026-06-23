@@ -34,4 +34,4 @@ each shipped with tests + a prod-chain migration check where schema changes.
 `npm run build` · `npm test` · `npm run test:e2e` · check-only lint on changed
 files · migration applies in the prod chain. Update checkboxes here.
 
-Status: ✅ PH-1 ✅ PH-2 ⬜ PH-3 ⬜ PH-4 ⬜ PH-5
+Status: ✅ PH-1 ✅ PH-2 ✅ PH-3 ⬜ PH-4 ⬜ PH-5

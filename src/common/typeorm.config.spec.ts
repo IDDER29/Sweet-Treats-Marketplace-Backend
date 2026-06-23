@@ -69,5 +69,28 @@ describe('typeorm.config', () => {
       expect(o.synchronize).toBe(false);
       expect(o.migrationsRun).toBe(true);
     });
+
+    it('bounds the pool and caps statement time with defaults', () => {
+      delete process.env.DB_POOL_SIZE;
+      delete process.env.DB_STATEMENT_TIMEOUT_MS;
+      const o: any = buildTypeOrmOptions();
+      expect(o.extra.max).toBe(10);
+      expect(o.extra.statement_timeout).toBe(10000);
+    });
+
+    it('honours DB_POOL_SIZE and DB_STATEMENT_TIMEOUT_MS overrides', () => {
+      process.env.DB_POOL_SIZE = '25';
+      process.env.DB_STATEMENT_TIMEOUT_MS = '3000';
+      const o: any = buildTypeOrmOptions();
+      expect(o.extra.max).toBe(25);
+      expect(o.extra.statement_timeout).toBe(3000);
+    });
+
+    it('keeps pool/timeout config when replicas are enabled', () => {
+      process.env.DB_REPLICA_HOSTS = 'replica-a';
+      const o: any = buildTypeOrmOptions();
+      expect(o.extra.max).toBe(10);
+      expect(o.extra.statement_timeout).toBe(10000);
+    });
   });
 });
