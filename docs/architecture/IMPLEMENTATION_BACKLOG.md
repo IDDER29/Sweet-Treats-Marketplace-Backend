@@ -102,24 +102,74 @@ tests pass; no service does ad-hoc ownership `where` checks.
   without Redis. e2e verifies rotation + single-use rejection.
 - 🔁 RS256 — deferred by design: HS256 + short TTL + refresh is correct for the
   monolith; adopt RS256 at the gateway/service-split (ADR-0002 note).
-- ⬜ Reuse-detection (revoke the whole family on a replayed refresh token).
-- ⬜ Fold business auth into the unified identity/token model.
-- ⬜ MFA (TOTP) for admins.
+- ✅ Reuse-detection: refresh tokens carry a *family*; rotation marks the old
+  token `used` (kept, not deleted), and replaying a used token burns the whole
+  family (atomic `active→used` flip via Lua). Verified against live Redis (unit)
+  and through HTTP (e2e: the valid rotated token dies once the family is burned).
+- ✅ Business auth at parity with users: short-lived access token (15m) +
+  rotating refresh token (`/business/auth/refresh`, `/business/auth/logout`).
+  Refresh tokens are principal-`kind` namespaced ('user' vs 'business') and the
+  kind is enforced *inside* the atomic rotate (a token sent to the wrong
+  endpoint is rejected **without** being consumed). e2e covers business rotation
+  + cross-kind rejection.
+- ✅ MFA (TOTP) — enroll (`POST /users/mfa/enroll` → otpauth URI) → activate
+  (`/mfa/activate`) → enforced at login (a valid 6-digit code is required when
+  `mfa_enabled`); disable requires a current code. Secret is `select:false` (never
+  loaded by ordinary finds, so it can't leak). otplib, RFC-6238, authenticator-app
+  compatible. Unit + e2e tested (real codes; profile-leak guard). Recommended for
+  ADMIN accounts.
 
 ## Phase 8 — Scale & performance  🔒
-- 🔒 PgBouncer (transaction pooling) before scaling API replicas.
-- 🔒 Read replica + read/write routing for catalog/analytics/admin.
-- 🔒 CDN + Cloudflare R2 (presigned uploads, on-the-fly resize).
-- 🔒 Postgres FTS (`tsvector` + `pg_trgm`) → Meilisearch at scale.
+- ✅ PgBouncer (transaction pooling): canonical `infra/pgbouncer/pgbouncer.ini`
+  + opt-in compose service (`--profile scale`). Verified the app runs end-to-end
+  through it (TypeORM txns + parameterized FTS); see `docs/architecture/scaling.md`.
+- ✅ Read replica + read/write routing: `DB_REPLICA_HOSTS` enables TypeORM
+  replication (writes/migrations→master, reads→replicas) via
+  `buildTypeOrmOptions()`; graceful single-connection default. Unit-tested.
+- ✅ Presigned direct-to-S3 uploads: `POST /uploads/product-image/presign`
+  returns a short-lived (5m) signed PUT URL so image bytes never transit the
+  API; the object key is minted server-side under the business prefix.
+  `STORAGE_ENDPOINT` makes it work against any S3-compatible store (MinIO/R2);
+  docker-compose wires MinIO + a bucket-init container. Verified with a real
+  PUT→GET round-trip against MinIO (200, content-type preserved, bytes match)
+  and a unit spec over the signed URL. → CDN + on-the-fly resize remain infra.
+- ✅ Postgres full-text product search: weighted `tsvector`
+  (name▸description▸ingredients), `plainto_tsquery`, relevance-ranked
+  (`ts_rank`), backed by a GIN expression index (`AddProductFullTextSearch`
+  migration). Stemmed + stop-word aware — "cakes" matches "cake" (ILIKE missed
+  it). Works in dev (synchronize, seq-scan) and prod (migration, index-scan —
+  verified via EXPLAIN). e2e covers the stemmed match. → Meilisearch at scale.
 
-## Phase 9 — Platform & DevOps  🔒
-- 🔒 Terraform IaC; Fargate/Cloud Run; blue-green + auto-rollback; pre-deploy
-  migration with snapshot; multi-AZ; tested DR/restore.
+## Phase 9 — Platform & DevOps  (containerization done; cloud infra 🔒)
+- ✅ Multi-stage `Dockerfile` (`node:20-slim`): builder compiles TS → `dist`,
+  prunes to prod deps; runtime is non-root (`appuser`), `dumb-init` PID 1,
+  container `HEALTHCHECK` on `/health/ready`. Verified end-to-end: image builds,
+  boots in `NODE_ENV=production`, runs the full 5-migration chain against a fresh
+  DB, serves `/health/*` + `/metrics`; the worker entrypoint (`node dist/worker`)
+  boots and processes queues. Optional `--secret id=npm_ca` supports building
+  behind a TLS-inspecting egress proxy without baking certs into the image.
+- ✅ `docker-compose.yml` dev stack with prod parity: postgres, redis, mailhog
+  (SMTP), minio (S3), API (`PROCESS_QUEUES=false`) + dedicated worker
+  (`PROCESS_QUEUES=true`) from the same image.
+- ✅ GitHub Actions CI (`.github/workflows/ci.yml`): postgres+redis services,
+  `lint → build → test → test:e2e`, plus a gated image-build job (buildx, GHA
+  cache).
+- ✅ Terraform IaC skeleton (`infra/terraform/`): ECS Fargate (API + worker from
+  one image), ALB w/ HTTPS + `/health/ready` checks, multi-AZ RDS Postgres,
+  ElastiCache Redis (failover), S3 uploads via task IAM role (no static keys),
+  ECR, Secrets Manager (generated DB/JWT secrets), per-AZ NAT. `terraform
+  validate` passes. → blue-green + auto-rollback, pre-deploy migration snapshot,
+  and tested DR/restore remain.
 - 🔒 Sentry/metrics/tracing wired to alerting (SLO-based).
 
-## Phase 10 — Commerce depth  🔒
-- 🔒 Stripe Connect seller payouts + reconciliation; refund/dispute/chargeback
-  flows; tax/VAT; price/inventory snapshot-at-order-time guarantees.
+## Phase 10 — Commerce depth  (Connect scaffolded; ADR-0007)
+- ✅ Stripe Connect seller payouts — scaffolded + unit-tested: Express accounts,
+  destination charges (`application_fee_amount` + `transfer_data.destination`),
+  fee/split math clamped to `[0, gross]`, `payoutsEnabled` gating,
+  connected-account data model + migration, `POST /payouts/onboarding-link`, and
+  `account.updated` sync. Live Stripe calls need a Connect-enabled key. ADR-0007.
+- 🔒 Reconciliation; refund/dispute/chargeback flows (reverse_transfer);
+  refund-after-payout; tax/VAT; price/inventory snapshot-at-order-time.
 
 ## Phase 11 — Framework upgrade  🔒 (own branch, reviewed)
 - 🔒 NestJS 10→11 / Express 5 (rewrite the `@Delete(':key(*)')` wildcard route,

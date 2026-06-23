@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './entities/product.entity';
@@ -17,6 +13,14 @@ import { StorageService } from '../storage/storage.service';
 
 @Injectable()
 export class ProductService {
+  // Weighted full-text document for product search. Must stay byte-for-byte in
+  // sync with the GIN index expression in the AddProductFullTextSearch migration
+  // (modulo the `product.` alias) so Postgres can use the index.
+  private static readonly FTS_DOC =
+    `(setweight(to_tsvector('english', coalesce(product.name, '')), 'A') || ` +
+    `setweight(to_tsvector('english', coalesce(product.description, '')), 'B') || ` +
+    `setweight(to_tsvector('english', coalesce(product.ingredients, '')), 'C'))`;
+
   constructor(
     @InjectRepository(Product)
     private productRepository: Repository<Product>,
@@ -58,9 +62,13 @@ export class ProductService {
   // Find all products with filtering and pagination.
   // Public catalog (no businessId) only returns active products.
   // Sellers see all their own products regardless of isActive.
-  async findAll(
-    query: ProductQueryDto,
-  ): Promise<{ data: Product[]; total: number; page: number; limit: number; totalPages: number }> {
+  async findAll(query: ProductQueryDto): Promise<{
+    data: Product[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
     const {
       businessId,
       category,
@@ -89,9 +97,12 @@ export class ProductService {
     if (businessId) qb.andWhere('business.id = :businessId', { businessId });
     if (category) qb.andWhere('category.slug = :category', { category });
     if (search)
+      // Full-text search: stemmed, stop-word aware, and index-backed by the GIN
+      // index on the same expression (see AddProductFullTextSearch migration).
+      // Name is weighted above description above ingredients for ranking.
       qb.andWhere(
-        '(product.name ILIKE :search OR product.description ILIKE :search)',
-        { search: `%${search}%` },
+        `${ProductService.FTS_DOC} @@ plainto_tsquery('english', :search)`,
+        { search },
       );
     if (minPrice !== undefined)
       qb.andWhere('product.price >= :minPrice', { minPrice });
@@ -114,7 +125,19 @@ export class ProductService {
     );
 
     const offset = (page - 1) * limit;
-    qb.skip(offset).take(limit).orderBy('product.createdAt', 'DESC');
+    // limit/offset (not skip/take): both joins are many-to-one so no row
+    // multiplication, and this avoids TypeORM's DISTINCT-id subquery, which
+    // can't carry the ts_rank ORDER BY expression below.
+    qb.limit(limit).offset(offset);
+    if (search) {
+      // Order by relevance when searching; newest first as the tiebreaker.
+      qb.orderBy(
+        `ts_rank(${ProductService.FTS_DOC}, plainto_tsquery('english', :search))`,
+        'DESC',
+      ).addOrderBy('product.createdAt', 'DESC');
+    } else {
+      qb.orderBy('product.createdAt', 'DESC');
+    }
 
     const [data, total] = await qb.getManyAndCount();
     return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
@@ -215,7 +238,10 @@ export class ProductService {
         product.stockQuantity += dto.quantity;
         break;
       case 'decrement':
-        product.stockQuantity = Math.max(0, product.stockQuantity - dto.quantity);
+        product.stockQuantity = Math.max(
+          0,
+          product.stockQuantity - dto.quantity,
+        );
         break;
     }
 

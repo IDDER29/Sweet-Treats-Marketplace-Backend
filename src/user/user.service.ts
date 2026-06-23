@@ -15,6 +15,7 @@ import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { MailService } from '../mail/mail.service';
 import { RefreshTokenService } from '../auth/refresh-token.service';
+import { generateTotpSecret, totpKeyUri, verifyTotp } from '../common/totp';
 
 @Injectable()
 export class UsersService {
@@ -53,9 +54,20 @@ export class UsersService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Second factor: when enabled, a valid TOTP code is required to issue tokens.
+    if (user.mfa_enabled) {
+      if (!loginUserDto.totpCode) {
+        throw new UnauthorizedException('MFA code required');
+      }
+      const secret = await this.getMfaSecret(user.user_id);
+      if (!verifyTotp(secret, loginUserDto.totpCode)) {
+        throw new UnauthorizedException('Invalid MFA code');
+      }
+    }
+
     const token = this.accessToken(user);
     // Short-lived access token + a rotating, revocable refresh token (Redis).
-    const refreshToken = await this.refreshTokens.issue(user.user_id);
+    const refreshToken = await this.refreshTokens.issue(user.user_id, 'user');
 
     return {
       token,
@@ -71,7 +83,7 @@ export class UsersService {
   // Exchange a valid refresh token for a new access token + rotated refresh
   // token. The presented refresh token is single-use.
   async refreshSession(refreshToken: string) {
-    const rotated = await this.refreshTokens.rotate(refreshToken);
+    const rotated = await this.refreshTokens.rotate(refreshToken, 'user');
     if (!rotated) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
@@ -87,6 +99,66 @@ export class UsersService {
   async logout(refreshToken: string) {
     await this.refreshTokens.revoke(refreshToken);
     return { message: 'Logged out' };
+  }
+
+  // --- MFA (TOTP) -------------------------------------------------------------
+  // `mfa_secret` is select:false, so it's fetched explicitly only where needed.
+  private async getMfaSecret(userId: string): Promise<string | null> {
+    const row = await this.usersRepository
+      .createQueryBuilder('user')
+      .select('user.mfa_secret', 'mfa_secret')
+      .where('user.user_id = :userId', { userId })
+      .getRawOne();
+    return row?.mfa_secret ?? null;
+  }
+
+  // Step 1: mint a secret and return the otpauth URI to add to an authenticator.
+  // MFA isn't active until the user proves they can generate codes (activate).
+  async enrollMfa(userId: string) {
+    const user = await this.usersRepository.findOne({
+      where: { user_id: userId },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.mfa_enabled) {
+      throw new BadRequestException('MFA is already enabled');
+    }
+    const secret = generateTotpSecret();
+    await this.usersRepository.update(userId, { mfa_secret: secret });
+    return { secret, otpauthUrl: totpKeyUri(user.email, secret) };
+  }
+
+  // Step 2: confirm a code from the enrolled secret, then turn MFA on.
+  async activateMfa(userId: string, code: string) {
+    const secret = await this.getMfaSecret(userId);
+    if (!secret) {
+      throw new BadRequestException('Start MFA enrollment first');
+    }
+    if (!verifyTotp(secret, code)) {
+      throw new BadRequestException('Invalid MFA code');
+    }
+    await this.usersRepository.update(userId, { mfa_enabled: true });
+    return { message: 'MFA enabled' };
+  }
+
+  // Turn MFA off — requires a valid current code so a hijacked session can't
+  // silently strip the second factor.
+  async disableMfa(userId: string, code: string) {
+    const user = await this.usersRepository.findOne({
+      where: { user_id: userId },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    if (!user.mfa_enabled) {
+      throw new BadRequestException('MFA is not enabled');
+    }
+    const secret = await this.getMfaSecret(userId);
+    if (!verifyTotp(secret, code)) {
+      throw new BadRequestException('Invalid MFA code');
+    }
+    await this.usersRepository.update(userId, {
+      mfa_enabled: false,
+      mfa_secret: null,
+    });
+    return { message: 'MFA disabled' };
   }
 
   async getProfile(userId: string) {

@@ -15,12 +15,14 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { PaymentService } from './payment.service';
 import { CreatePaymentIntentDto } from './dto/create-payment-intent.dto';
 import { RefundPaymentDto } from './dto/refund-payment.dto';
+import { Idempotent } from '../common/idempotency/idempotent.decorator';
 
 @Controller('payments')
 export class PaymentController {
   constructor(private readonly paymentService: PaymentService) {}
 
   @UseGuards(AuthGuard('jwt'))
+  @Idempotent()
   @Post('intent')
   createIntent(@Request() req, @Body() dto: CreatePaymentIntentDto) {
     return this.paymentService.createPaymentIntent(req.user.userId, dto);

@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Body,
   Delete,
   Param,
   Request,
@@ -13,6 +14,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '@nestjs/passport';
 import { memoryStorage } from 'multer';
 import { StorageService } from '../storage/storage.service';
+import { PresignUploadDto } from './dto/presign-upload.dto';
 
 @Controller('uploads')
 export class UploadController {
@@ -42,6 +44,18 @@ export class UploadController {
   ) {
     if (!file) throw new BadRequestException('No file uploaded');
     return this.storageService.uploadProductImage(file, req.user.businessId);
+  }
+
+  // Direct-to-S3 alternative: hand the client a short-lived presigned PUT URL so
+  // the image bytes never transit the API. The client PUTs to `uploadUrl` with
+  // the same Content-Type, then saves the returned `key`/`publicUrl`.
+  @UseGuards(AuthGuard('business-jwt'))
+  @Post('product-image/presign')
+  async presignProductImage(@Body() dto: PresignUploadDto, @Request() req) {
+    return this.storageService.createPresignedUpload(
+      req.user.businessId,
+      dto.contentType,
+    );
   }
 
   @UseGuards(AuthGuard('business-jwt'))

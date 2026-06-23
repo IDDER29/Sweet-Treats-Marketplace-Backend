@@ -51,4 +51,13 @@ export class Users {
 
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
   role: UserRole;
+
+  // TOTP multi-factor auth. `mfa_secret` holds the base32 seed (set at enroll,
+  // confirmed at activate); `mfa_enabled` gates whether login demands a code.
+  // `select: false` keeps the secret out of ordinary finds so it can't leak.
+  @Column({ type: 'varchar', length: 255, nullable: true, select: false })
+  mfa_secret?: string | null;
+
+  @Column({ type: 'boolean', default: false })
+  mfa_enabled: boolean;
 }

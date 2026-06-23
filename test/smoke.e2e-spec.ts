@@ -3,6 +3,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import request from 'supertest';
+import { authenticator } from 'otplib';
 import { AppModule } from './../src/app.module';
 import { Users } from './../src/entities/users.entity';
 
@@ -31,6 +32,7 @@ describe('Smoke / integration (e2e)', () => {
 
   let customerToken: string;
   let businessToken: string;
+  let businessRefreshToken: string;
   let productId: string;
 
   beforeAll(async () => {
@@ -174,10 +176,17 @@ describe('Smoke / integration (e2e)', () => {
         .set('Authorization', `Bearer ${refreshed.body.token}`)
         .expect(200);
 
-      // The old refresh token is now single-use -> rejected.
+      // The old refresh token is now single-use -> rejected. Replaying it also
+      // trips reuse-detection, which burns the whole token family.
       await request(http)
         .post('/users/auth/refresh')
         .send({ refreshToken })
+        .expect(401);
+
+      // Because the family was revoked, the *valid* rotated token is dead too.
+      await request(http)
+        .post('/users/auth/refresh')
+        .send({ refreshToken: refreshed.body.refreshToken })
         .expect(401);
     });
 
@@ -196,6 +205,70 @@ describe('Smoke / integration (e2e)', () => {
     });
   });
 
+  describe('MFA (TOTP)', () => {
+    it('enrolls, activates, then enforces the second factor at login', async () => {
+      const email = `e2e_mfa_${uniq}@test.com`;
+      await request(http)
+        .post('/users/auth/register')
+        .send({ first_name: 'M', last_name: 'F', email, password })
+        .expect(201);
+      const login = await request(http)
+        .post('/users/auth/login')
+        .send({ email, password })
+        .expect(201);
+      const token = login.body.token;
+
+      // Enroll -> get the shared secret.
+      const enroll = await request(http)
+        .post('/users/mfa/enroll')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(201);
+      expect(enroll.body.otpauthUrl).toMatch(/^otpauth:\/\/totp\//);
+      const secret = enroll.body.secret;
+
+      // Activate with a real code.
+      await request(http)
+        .post('/users/mfa/activate')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ code: authenticator.generate(secret) })
+        .expect(201);
+
+      // Login now requires the code.
+      await request(http)
+        .post('/users/auth/login')
+        .send({ email, password })
+        .expect(401);
+
+      // ...and succeeds with a valid one.
+      const mfaLogin = await request(http)
+        .post('/users/auth/login')
+        .send({ email, password, totpCode: authenticator.generate(secret) })
+        .expect(201);
+      expect(mfaLogin.body.token).toBeDefined();
+    });
+
+    it('never exposes the MFA secret on the profile', async () => {
+      const email = `e2e_mfa_leak_${uniq}@test.com`;
+      await request(http)
+        .post('/users/auth/register')
+        .send({ first_name: 'M', last_name: 'L', email, password })
+        .expect(201);
+      const login = await request(http)
+        .post('/users/auth/login')
+        .send({ email, password })
+        .expect(201);
+      await request(http)
+        .post('/users/mfa/enroll')
+        .set('Authorization', `Bearer ${login.body.token}`)
+        .expect(201);
+      const profile = await request(http)
+        .get('/users/profile')
+        .set('Authorization', `Bearer ${login.body.token}`)
+        .expect(200);
+      expect(profile.body.mfa_secret).toBeUndefined();
+    });
+  });
+
   describe('Audit logging', () => {
     it('writes an immutable audit entry for an admin action', async () => {
       // Mint an ADMIN: register a user, promote via the repo, log in for a token
@@ -203,7 +276,12 @@ describe('Smoke / integration (e2e)', () => {
       const adminEmail = `e2e_admin_${uniq}@test.com`;
       await request(http)
         .post('/users/auth/register')
-        .send({ first_name: 'Ad', last_name: 'Min', email: adminEmail, password })
+        .send({
+          first_name: 'Ad',
+          last_name: 'Min',
+          email: adminEmail,
+          password,
+        })
         .expect(201);
       const usersRepo: Repository<Users> = app.get(getRepositoryToken(Users));
       await usersRepo.update({ email: adminEmail }, { role: 'ADMIN' as any });
@@ -267,13 +345,37 @@ describe('Smoke / integration (e2e)', () => {
         .expect(201);
     });
 
-    it('logs in the business and issues a token', async () => {
+    it('logs in the business and issues a token + refresh token', async () => {
       const res = await request(http)
         .post('/business/login')
         .send({ email: businessEmail, password })
         .expect(201);
       expect(res.body.token).toBeDefined();
+      expect(res.body.refreshToken).toBeDefined();
       businessToken = res.body.token;
+      businessRefreshToken = res.body.refreshToken;
+    });
+
+    it('rotates the business refresh token (single-use, kind-checked)', async () => {
+      const refreshed = await request(http)
+        .post('/business/auth/refresh')
+        .send({ refreshToken: businessRefreshToken })
+        .expect(201);
+      expect(refreshed.body.token).toBeDefined();
+      expect(refreshed.body.refreshToken).toBeDefined();
+      expect(refreshed.body.refreshToken).not.toBe(businessRefreshToken);
+
+      // A business refresh token must not be redeemable at the user endpoint.
+      await request(http)
+        .post('/users/auth/refresh')
+        .send({ refreshToken: refreshed.body.refreshToken })
+        .expect(401);
+
+      // The original (now rotated) business token is single-use -> rejected.
+      await request(http)
+        .post('/business/auth/refresh')
+        .send({ refreshToken: businessRefreshToken })
+        .expect(401);
     });
 
     it('serves analytics to an authenticated business', async () => {
@@ -305,6 +407,19 @@ describe('Smoke / integration (e2e)', () => {
         .expect(201);
       expect(res.body.id).toBeDefined();
       productId = res.body.id;
+    });
+
+    it('finds the product via stemmed full-text search (cakes -> cake)', async () => {
+      // "cakes" (plural) must match the "...Cake" product through FTS stemming —
+      // a plain ILIKE '%cakes%' would miss it entirely.
+      const res = await request(http)
+        .get('/products')
+        .query({ search: 'cakes' })
+        .expect(200);
+      expect(res.body.total).toBeGreaterThan(0);
+      expect(Array.isArray(res.body.data)).toBe(true);
+      const names = res.body.data.map((p: any) => String(p.name).toLowerCase());
+      expect(names.some((n: string) => n.includes('cake'))).toBe(true);
     });
 
     it('checks out an order with a server-recomputed total', async () => {
@@ -422,6 +537,45 @@ describe('Smoke / integration (e2e)', () => {
         .set('Authorization', `Bearer ${customerToken}`)
         .expect(200);
       expect(await stockOf(tracked)).toBe(10);
+    });
+
+    it('replays a repeated Idempotency-Key instead of double-checking-out', async () => {
+      const created = await request(http)
+        .post('/products')
+        .set('Authorization', `Bearer ${businessToken}`)
+        .send({
+          name: 'Idem Cake',
+          price: 10,
+          stockQuantity: 10,
+          trackStock: true,
+          category: 'cakes',
+        })
+        .expect(201);
+      const pid = created.body.id;
+      const idemKey = `idem-${uniq}`;
+      const body = { items: [{ productId: pid, quantity: 2 }] };
+
+      const first = await request(http)
+        .post('/orders')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .set('Idempotency-Key', idemKey)
+        .send(body)
+        .expect(201);
+
+      const replay = await request(http)
+        .post('/orders')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .set('Idempotency-Key', idemKey)
+        .send(body)
+        .expect(201);
+
+      // Same order replayed, and stock only decremented once (10 - 2 = 8).
+      expect(replay.body.id).toBe(first.body.id);
+      const stockRes = await request(http)
+        .get(`/products/${pid}/stock`)
+        .set('Authorization', `Bearer ${businessToken}`)
+        .expect(200);
+      expect(Number(stockRes.body.stockQuantity)).toBe(8);
     });
 
     it('enforces a per-customer discount usage limit', async () => {

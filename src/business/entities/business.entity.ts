@@ -60,6 +60,15 @@ export class Business {
   @Column({ default: false })
   hygieneCertificateVerified: boolean;
 
+  // Stripe Connect: the seller's connected-account id (acct_…). Null until the
+  // business completes onboarding. `payoutsEnabled` mirrors the account's
+  // charges/payouts capability, updated from account.updated webhooks.
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  stripeAccountId: string | null;
+
+  @Column({ default: false })
+  payoutsEnabled: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 
