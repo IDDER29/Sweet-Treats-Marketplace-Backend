@@ -577,6 +577,56 @@ describe('Smoke / integration (e2e)', () => {
     });
   });
 
+  describe('Delivery partner', () => {
+    let driverToken: string;
+    let driverId: string;
+    let orderId: string;
+
+    it('registers and logs in a driver', async () => {
+      const email = `e2e_driver_${uniq}@test.com`;
+      const reg = await request(http)
+        .post('/drivers/register')
+        .send({ name: 'Dan', email, password: 'password123' })
+        .expect(201);
+      expect(reg.body.password).toBeUndefined();
+      driverId = reg.body.id;
+      const login = await request(http)
+        .post('/drivers/login')
+        .send({ email, password: 'password123' })
+        .expect(201);
+      driverToken = login.body.token;
+    });
+
+    it('a driver sees their (empty) assigned-order list', async () => {
+      const res = await request(http)
+        .get('/drivers/me/orders')
+        .set('Authorization', `Bearer ${driverToken}`)
+        .expect(200);
+      expect(Array.isArray(res.body)).toBe(true);
+    });
+
+    it('assign-driver requires business auth', async () => {
+      const order = await request(http)
+        .post('/orders')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({ items: [{ productId, quantity: 1 }], deliveryAddress: '1 St' })
+        .expect(201);
+      orderId = order.body.id;
+      await request(http)
+        .patch(`/orders/${orderId}/assign-driver`)
+        .send({ driverId })
+        .expect(401);
+    });
+
+    it('cannot assign a driver before the order is PREPARING/READY', async () => {
+      await request(http)
+        .patch(`/orders/${orderId}/assign-driver`)
+        .set('Authorization', `Bearer ${businessToken}`)
+        .send({ driverId })
+        .expect(400);
+    });
+  });
+
   describe('Favorites', () => {
     const auth = () => ({ Authorization: `Bearer ${customerToken}` });
 

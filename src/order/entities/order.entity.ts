@@ -12,6 +12,7 @@ import {
 } from 'typeorm';
 import { Users } from '../../entities/users.entity';
 import { Business } from '../../business/entities/business.entity';
+import { Driver } from '../../driver/entities/driver.entity';
 import { OrderItem } from './order-item.entity';
 
 export enum OrderStatus {
@@ -47,6 +48,11 @@ export class Order {
 
   @OneToMany(() => OrderItem, (item) => item.order, { cascade: true })
   items: OrderItem[];
+
+  // Assigned delivery partner (null until a seller assigns one).
+  @ManyToOne(() => Driver, { nullable: true })
+  @JoinColumn({ name: 'driver_id' })
+  driver: Driver;
 
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   totalAmount: number;

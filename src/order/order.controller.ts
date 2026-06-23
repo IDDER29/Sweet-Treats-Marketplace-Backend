@@ -12,6 +12,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { OrderService } from './order.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { AssignDriverDto } from './dto/assign-driver.dto';
 import { Idempotent } from '../common/idempotency/idempotent.decorator';
 
 @Controller('orders')
@@ -51,6 +52,20 @@ export class OrderController {
     return this.orderService.updateStatus(
       id,
       updateOrderStatusDto.status,
+      req.user.businessId,
+    );
+  }
+
+  @UseGuards(AuthGuard('business-jwt'))
+  @Patch(':id/assign-driver')
+  assignDriver(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() dto: AssignDriverDto,
+  ) {
+    return this.orderService.assignDriver(
+      id,
+      dto.driverId,
       req.user.businessId,
     );
   }

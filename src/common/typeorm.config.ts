@@ -18,6 +18,7 @@ import { Address } from '../address/entities/address.entity';
 import { Notification } from '../notification/entities/notification.entity';
 import { Favorite } from '../favorites/entities/favorite.entity';
 import { ShopFollow } from '../favorites/entities/shop-follow.entity';
+import { Driver } from '../driver/entities/driver.entity';
 
 const entities = [
   Business,
@@ -39,6 +40,7 @@ const entities = [
   Notification,
   Favorite,
   ShopFollow,
+  Driver,
 ];
 
 interface Endpoint {

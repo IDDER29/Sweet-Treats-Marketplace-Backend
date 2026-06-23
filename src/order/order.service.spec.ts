@@ -10,6 +10,7 @@ import { Product } from '../product/entities/product.entity';
 import { DeliverySlot } from '../delivery/entities/delivery-slot.entity';
 import { DiscountCode } from '../discount/entities/discount-code.entity';
 import { Address } from '../address/entities/address.entity';
+import { Driver } from '../driver/entities/driver.entity';
 import { MailQueueService } from '../mail/mail-queue.service';
 import { MetricsService } from '../observability/metrics.service';
 import { NotificationService } from '../notification/notification.service';
@@ -17,6 +18,7 @@ import { NotificationService } from '../notification/notification.service';
 describe('OrderService.updateStatus (lifecycle)', () => {
   let service: OrderService;
   let orderRepo: any;
+  let driverRepo: any;
   let notifications: { record: jest.Mock };
 
   const repoMock = () => ({
@@ -29,6 +31,7 @@ describe('OrderService.updateStatus (lifecycle)', () => {
 
   beforeEach(async () => {
     orderRepo = repoMock();
+    driverRepo = repoMock();
     notifications = { record: jest.fn() };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -40,6 +43,7 @@ describe('OrderService.updateStatus (lifecycle)', () => {
         { provide: getRepositoryToken(DeliverySlot), useValue: repoMock() },
         { provide: getRepositoryToken(DiscountCode), useValue: repoMock() },
         { provide: getRepositoryToken(Address), useValue: repoMock() },
+        { provide: getRepositoryToken(Driver), useValue: driverRepo },
         { provide: DataSource, useValue: {} },
         { provide: MailQueueService, useValue: { statusUpdate: jest.fn() } },
         {
@@ -90,5 +94,68 @@ describe('OrderService.updateStatus (lifecycle)', () => {
     await expect(
       service.updateStatus('o1', OrderStatus.PREPARING, 'someone-else'),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  describe('driver assignment + delivery', () => {
+    it('assigns an active driver to a READY order (owner only)', async () => {
+      orderRepo.findOne.mockResolvedValue(orderWith(OrderStatus.READY));
+      driverRepo.findOne.mockResolvedValue({
+        id: 'd1',
+        name: 'Dan',
+        isActive: true,
+      });
+      const res = await service.assignDriver('o1', 'd1', 'b1');
+      expect(orderRepo.save).toHaveBeenCalled();
+      expect(res.status).toBe(OrderStatus.READY);
+      expect(notifications.record).toHaveBeenCalled();
+    });
+
+    it('rejects assigning before PREPARING/READY', async () => {
+      orderRepo.findOne.mockResolvedValue(orderWith(OrderStatus.PAID));
+      driverRepo.findOne.mockResolvedValue({ id: 'd1', isActive: true });
+      await expect(
+        service.assignDriver('o1', 'd1', 'b1'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects assigning a non-owner business', async () => {
+      orderRepo.findOne.mockResolvedValue(orderWith(OrderStatus.READY));
+      await expect(
+        service.assignDriver('o1', 'd1', 'other'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('lets the assigned driver advance OUT_FOR_DELIVERY -> DELIVERED', async () => {
+      orderRepo.findOne.mockResolvedValue({
+        ...orderWith(OrderStatus.OUT_FOR_DELIVERY),
+        driver: { id: 'd1' },
+      });
+      const res = await service.driverUpdateStatus(
+        'o1',
+        OrderStatus.DELIVERED,
+        'd1',
+      );
+      expect(res.status).toBe(OrderStatus.DELIVERED);
+    });
+
+    it('forbids a driver acting on an order not assigned to them', async () => {
+      orderRepo.findOne.mockResolvedValue({
+        ...orderWith(OrderStatus.OUT_FOR_DELIVERY),
+        driver: { id: 'other-driver' },
+      });
+      await expect(
+        service.driverUpdateStatus('o1', OrderStatus.DELIVERED, 'd1'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('rejects an illegal driver transition', async () => {
+      orderRepo.findOne.mockResolvedValue({
+        ...orderWith(OrderStatus.PREPARING),
+        driver: { id: 'd1' },
+      });
+      await expect(
+        service.driverUpdateStatus('o1', OrderStatus.DELIVERED, 'd1'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
   });
 });

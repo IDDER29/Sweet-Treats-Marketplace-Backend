@@ -11,6 +11,7 @@ import { Product } from '../product/entities/product.entity';
 import { DeliverySlot } from '../delivery/entities/delivery-slot.entity';
 import { DiscountCode } from '../discount/entities/discount-code.entity';
 import { Address } from '../address/entities/address.entity';
+import { Driver } from '../driver/entities/driver.entity';
 import { MailModule } from '../mail/mail.module';
 import { NotificationModule } from '../notification/notification.module';
 
@@ -25,6 +26,7 @@ import { NotificationModule } from '../notification/notification.module';
       DeliverySlot,
       DiscountCode,
       Address,
+      Driver,
     ]),
     PassportModule,
     MailModule,

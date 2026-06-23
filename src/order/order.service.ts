@@ -10,6 +10,7 @@ import { Order, OrderStatus } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { Users } from '../entities/users.entity';
 import { Product } from '../product/entities/product.entity';
+import { Driver } from '../driver/entities/driver.entity';
 import { DeliverySlot } from '../delivery/entities/delivery-slot.entity';
 import {
   DiscountCode,
@@ -23,7 +24,13 @@ import { assertOwnership } from '../common/authorization/ownership.util';
 import { MetricsService } from '../observability/metrics.service';
 import { NotificationService } from '../notification/notification.service';
 
-const ORDER_RELATIONS = ['items', 'items.product', 'business', 'customer'];
+const ORDER_RELATIONS = [
+  'items',
+  'items.product',
+  'business',
+  'customer',
+  'driver',
+];
 
 @Injectable()
 export class OrderService {
@@ -40,6 +47,8 @@ export class OrderService {
     private readonly discountCodeRepository: Repository<DiscountCode>,
     @InjectRepository(Address)
     private readonly addressRepository: Repository<Address>,
+    @InjectRepository(Driver)
+    private readonly driverRepository: Repository<Driver>,
     private readonly dataSource: DataSource,
     private readonly mailQueue: MailQueueService,
     private readonly metrics: MetricsService,
@@ -522,6 +531,79 @@ export class OrderService {
       });
     }
 
+    return this.toResponse(saved);
+  }
+
+  // --- Delivery partner ------------------------------------------------------
+  // Seller assigns an active driver to one of their orders that's being prepared
+  // or ready for hand-off.
+  async assignDriver(orderId: string, driverId: string, businessId: string) {
+    const order = await this.getOrderOrFail(orderId);
+    assertOwnership(order, 'business.id', businessId, 'order');
+    if (![OrderStatus.PREPARING, OrderStatus.READY].includes(order.status)) {
+      throw new BadRequestException(
+        `A driver can only be assigned while the order is PREPARING or READY (currently ${order.status}).`,
+      );
+    }
+    const driver = await this.driverRepository.findOne({
+      where: { id: driverId },
+    });
+    if (!driver || !driver.isActive) {
+      throw new NotFoundException('Active driver not found');
+    }
+    order.driver = driver;
+    const saved = await this.orderRepository.save(order);
+    if (order.customer?.user_id) {
+      void this.notifications.record(order.customer.user_id, {
+        type: 'ORDER_DRIVER',
+        title: 'Driver assigned',
+        body: `${driver.name} will deliver your order.`,
+        data: { orderId: order.id, driverId },
+      });
+    }
+    return this.toResponse(saved);
+  }
+
+  findForDriver(driverId: string) {
+    return this.orderRepository
+      .find({
+        where: { driver: { id: driverId } },
+        relations: ORDER_RELATIONS,
+        order: { createdAt: 'DESC' },
+      })
+      .then((orders) => orders.map((o) => this.toResponse(o)));
+  }
+
+  // The driver advances only their own assigned orders, and only along the
+  // delivery leg (READY -> OUT_FOR_DELIVERY -> DELIVERED).
+  async driverUpdateStatus(
+    orderId: string,
+    status: OrderStatus,
+    driverId: string,
+  ) {
+    const order = await this.getOrderOrFail(orderId);
+    if (order.driver?.id !== driverId) {
+      throw new ForbiddenException('This order is not assigned to you');
+    }
+    const allowed: Record<string, OrderStatus[]> = {
+      [OrderStatus.READY]: [OrderStatus.OUT_FOR_DELIVERY],
+      [OrderStatus.OUT_FOR_DELIVERY]: [OrderStatus.DELIVERED],
+    };
+    if (!(allowed[order.status] ?? []).includes(status)) {
+      throw new BadRequestException(
+        `Driver cannot move order from ${order.status} to ${status}`,
+      );
+    }
+    order.status = status;
+    const saved = await this.orderRepository.save(order);
+    if (order.customer?.user_id) {
+      void this.notifications.record(order.customer.user_id, {
+        type: 'ORDER_STATUS',
+        title: `Order ${status.replace(/_/g, ' ').toLowerCase()}`,
+        body: `Your order is now ${status.replace(/_/g, ' ').toLowerCase()}.`,
+        data: { orderId: order.id, status },
+      });
+    }
     return this.toResponse(saved);
   }
 
