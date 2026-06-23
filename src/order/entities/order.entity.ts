@@ -15,6 +15,12 @@ import { Business } from '../../business/entities/business.entity';
 import { Driver } from '../../driver/entities/driver.entity';
 import { OrderItem } from './order-item.entity';
 
+export enum FulfillmentType {
+  PICKUP = 'PICKUP',
+  DELIVERY = 'DELIVERY',
+  SHIPPING = 'SHIPPING',
+}
+
 export enum OrderStatus {
   PENDING = 'PENDING',
   PAID = 'PAID',
@@ -59,6 +65,17 @@ export class Order {
 
   @Column({ type: 'enum', enum: OrderStatus, default: OrderStatus.PENDING })
   status: OrderStatus;
+
+  @Column({
+    type: 'enum',
+    enum: FulfillmentType,
+    default: FulfillmentType.DELIVERY,
+  })
+  fulfillmentType: FulfillmentType;
+
+  // Gratuity, added on top of the total (never discounted).
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  tipAmount: number;
 
   // Snapshot of the delivery address text at order time (kept even if the saved
   // Address is later edited/deleted). `deliveryAddressId` links the source.

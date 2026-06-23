@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
-import { Order, OrderStatus } from './entities/order.entity';
+import { Order, OrderStatus, FulfillmentType } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { Users } from '../entities/users.entity';
 import { Product } from '../product/entities/product.entity';
@@ -283,8 +283,13 @@ export class OrderService {
         appliedDiscountCodeId = discount.id;
       }
 
+      // Pickup waives the delivery fee. Tip is added on top, never discounted.
+      const fulfillmentType = dto.fulfillmentType ?? FulfillmentType.DELIVERY;
+      const deliveryFee =
+        fulfillmentType === FulfillmentType.PICKUP ? 0 : (dto.deliveryFee ?? 0);
+      const tipAmount = Math.max(0, Number(dto.tipAmount ?? 0));
       const totalAmount = Number(
-        (itemsTotal - discountAmount + (dto.deliveryFee ?? 0)).toFixed(2),
+        (itemsTotal - discountAmount + deliveryFee + tipAmount).toFixed(2),
       );
 
       // Resolve a saved address (if supplied) into a snapshot + phone.
@@ -302,6 +307,8 @@ export class OrderService {
         items,
         totalAmount,
         status: OrderStatus.PENDING,
+        fulfillmentType,
+        tipAmount,
         deliveryAddress,
         deliveryAddressId: dto.addressId ?? null,
         contactPhone,
@@ -309,7 +316,7 @@ export class OrderService {
         notes: dto.notes,
         requestedDeliveryDate: dto.requestedDeliveryDate,
         deliverySlotId: dto.deliverySlotId,
-        deliveryFee: dto.deliveryFee ?? 0,
+        deliveryFee,
         discountCodeId: appliedDiscountCodeId,
         discountAmount,
       });
@@ -624,12 +631,14 @@ export class OrderService {
     return {
       id: order.id,
       status: order.status,
+      fulfillmentType: order.fulfillmentType,
       totalAmount: Number(order.totalAmount),
       deliveryAddress: order.deliveryAddress,
       notes: order.notes,
       requestedDeliveryDate: order.requestedDeliveryDate,
       deliverySlotId: order.deliverySlotId,
       deliveryFee: Number(order.deliveryFee),
+      tipAmount: Number(order.tipAmount ?? 0),
       discountAmount: Number(order.discountAmount ?? 0),
       discountCodeId: order.discountCodeId,
       createdAt: order.createdAt,

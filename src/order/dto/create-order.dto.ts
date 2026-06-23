@@ -9,8 +9,10 @@ import {
   IsOptional,
   IsDateString,
   IsNumber,
+  IsEnum,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { FulfillmentType } from '../entities/order.entity';
 
 export class OrderItemInput {
   @IsUUID()
@@ -61,6 +63,15 @@ export class CreateOrderDto {
   @Min(0)
   @IsOptional()
   deliveryFee?: number;
+
+  @IsEnum(FulfillmentType)
+  @IsOptional()
+  fulfillmentType?: FulfillmentType;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  tipAmount?: number;
 
   @IsString()
   @IsOptional()

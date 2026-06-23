@@ -579,6 +579,44 @@ describe('Smoke / integration (e2e)', () => {
     });
   });
 
+  describe('Fulfillment + tips', () => {
+    const auth = () => ({ Authorization: `Bearer ${customerToken}` });
+
+    it('pickup waives the delivery fee and adds the tip', async () => {
+      const res = await request(http)
+        .post('/orders')
+        .set(auth())
+        .send({
+          items: [{ productId, quantity: 1 }],
+          fulfillmentType: 'PICKUP',
+          deliveryFee: 5,
+          tipAmount: 3,
+        })
+        .expect(201);
+      expect(res.body.fulfillmentType).toBe('PICKUP');
+      expect(Number(res.body.deliveryFee)).toBe(0); // waived for pickup
+      expect(Number(res.body.tipAmount)).toBe(3);
+      // 25.50 item + 0 fee + 3 tip
+      expect(Number(res.body.totalAmount)).toBe(28.5);
+    });
+
+    it('delivery keeps the fee and adds the tip', async () => {
+      const res = await request(http)
+        .post('/orders')
+        .set(auth())
+        .send({
+          items: [{ productId, quantity: 1 }],
+          fulfillmentType: 'DELIVERY',
+          deliveryFee: 5,
+          tipAmount: 2,
+        })
+        .expect(201);
+      expect(Number(res.body.deliveryFee)).toBe(5);
+      // 25.50 + 5 + 2
+      expect(Number(res.body.totalAmount)).toBe(32.5);
+    });
+  });
+
   describe('Messaging (buyer ↔ seller)', () => {
     let conversationId: string;
 
