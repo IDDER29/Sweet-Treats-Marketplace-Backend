@@ -34,6 +34,23 @@ export class Review {
   @Column({ type: 'text', nullable: true })
   comment: string;
 
+  // Photos attached by the reviewer: [{ url, key }]
+  @Column({ type: 'jsonb', nullable: true })
+  images: { url: string; key?: string }[];
+
+  // True when the reviewer had a paid order containing this product (always the
+  // case today, since reviews require a verified purchase — stored for clarity
+  // and in case the rule is relaxed later).
+  @Column({ type: 'boolean', default: true })
+  verifiedPurchase: boolean;
+
+  // Seller's public reply to the review.
+  @Column({ type: 'text', nullable: true })
+  sellerReply: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  sellerRepliedAt: Date;
+
   @CreateDateColumn()
   createdAt: Date;
 }

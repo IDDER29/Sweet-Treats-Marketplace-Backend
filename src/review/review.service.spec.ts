@@ -94,4 +94,45 @@ describe('ReviewService', () => {
       service.create('u1', 'missing', { rating: 5 } as any),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
+
+  it('stores images and flags the review as a verified purchase', async () => {
+    orderRepo.findOne.mockResolvedValue({ id: 'o1' });
+    reviewRepo.findOne.mockResolvedValue(null);
+    const images = [{ url: 'http://cdn/x.jpg' }];
+    const res = await service.create('u1', 'p1', { rating: 5, images } as any);
+    expect(reviewRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ images, verifiedPurchase: true }),
+    );
+    expect(res.verifiedPurchase).toBe(true);
+  });
+
+  describe('addSellerReply', () => {
+    const reviewOwnedBy = (bizId: string) => ({
+      id: 'rev1',
+      rating: 5,
+      product: { id: 'p1', business: { id: bizId } },
+    });
+
+    it('lets the product owner reply', async () => {
+      reviewRepo.findOne.mockResolvedValue(reviewOwnedBy('b1'));
+      const res = await service.addSellerReply('b1', 'p1', 'rev1', 'Thanks!');
+      expect(res.sellerReply).toBe('Thanks!');
+      expect(res.sellerRepliedAt).toBeInstanceOf(Date);
+      expect(reviewRepo.save).toHaveBeenCalled();
+    });
+
+    it('forbids a different business from replying (IDOR)', async () => {
+      reviewRepo.findOne.mockResolvedValue(reviewOwnedBy('b1'));
+      await expect(
+        service.addSellerReply('b2', 'p1', 'rev1', 'Mine'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('404s an unknown review', async () => {
+      reviewRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.addSellerReply('b1', 'p1', 'nope', 'x'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
 });

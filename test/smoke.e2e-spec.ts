@@ -613,6 +613,23 @@ describe('Smoke / integration (e2e)', () => {
     it('404s an unknown shop slug', async () => {
       await request(http).get('/shops/no-such-shop-xyz').expect(404);
     });
+
+    it('seller-reply endpoint requires business auth', async () => {
+      await request(http)
+        .post(`/products/${productId}/reviews/${productId}/reply`)
+        .send({ reply: 'x' })
+        .expect(401);
+    });
+
+    it('seller-reply 404s an unknown review', async () => {
+      await request(http)
+        .post(
+          `/products/${productId}/reviews/00000000-0000-4000-8000-000000000000/reply`,
+        )
+        .set('Authorization', `Bearer ${businessToken}`)
+        .send({ reply: 'Thanks!' })
+        .expect(404);
+    });
   });
 
   describe('Security regression guards', () => {

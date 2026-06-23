@@ -12,6 +12,7 @@ import { Product } from '../product/entities/product.entity';
 import { Business } from '../business/entities/business.entity';
 import { Order, OrderStatus } from '../order/entities/order.entity';
 import { CreateReviewDto } from './dto/create-review.dto';
+import { assertOwnership } from '../common/authorization/ownership.util';
 
 @Injectable()
 export class ReviewService {
@@ -76,6 +77,8 @@ export class ReviewService {
       product,
       rating: dto.rating,
       comment: dto.comment,
+      images: dto.images ?? null,
+      verifiedPurchase: true,
     });
     const saved = await this.reviewRepository.save(review);
 
@@ -93,6 +96,27 @@ export class ReviewService {
       order: { createdAt: 'DESC' },
     });
     return reviews.map((review) => this.toResponse(review));
+  }
+
+  // Seller replies to a review on one of their own products (one reply per
+  // review; ownership is enforced through the product's business).
+  async addSellerReply(
+    businessId: string,
+    productId: string,
+    reviewId: string,
+    reply: string,
+  ) {
+    const review = await this.reviewRepository.findOne({
+      where: { id: reviewId, product: { id: productId } },
+      relations: ['user', 'product', 'product.business'],
+    });
+    if (!review) throw new NotFoundException('Review not found');
+    assertOwnership(review, 'product.business.id', businessId, 'review');
+
+    review.sellerReply = reply;
+    review.sellerRepliedAt = new Date();
+    await this.reviewRepository.save(review);
+    return this.toResponse(review);
   }
 
   // Keeps the cached Product.rating / reviewCount in sync. Product.rating is a
@@ -135,6 +159,10 @@ export class ReviewService {
       id: review.id,
       rating: review.rating,
       comment: review.comment,
+      images: review.images ?? [],
+      verifiedPurchase: review.verifiedPurchase ?? true,
+      sellerReply: review.sellerReply ?? null,
+      sellerRepliedAt: review.sellerRepliedAt ?? null,
       createdAt: review.createdAt,
       user: review.user
         ? {
