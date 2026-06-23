@@ -27,6 +27,7 @@ import { AdminModule } from './admin/admin.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { MailModule } from './mail/mail.module';
 import { CustomOrderModule } from './custom-order/custom-order.module';
+import { CartModule } from './cart/cart.module';
 import { AuditModule } from './audit/audit.module';
 import { ObservabilityModule } from './observability/observability.module';
 import { buildTypeOrmOptions } from './common/typeorm.config';
@@ -82,6 +83,7 @@ import { IdempotencyInterceptor } from './common/idempotency/idempotency.interce
     AnalyticsModule,
     MailModule,
     CustomOrderModule,
+    CartModule,
     HealthModule,
     AuditModule,
   ],

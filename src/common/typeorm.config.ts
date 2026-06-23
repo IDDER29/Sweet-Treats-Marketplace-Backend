@@ -12,6 +12,8 @@ import { DiscountCode } from '../discount/entities/discount-code.entity';
 import { DiscountCodeUsage } from '../discount/entities/discount-code-usage.entity';
 import { CustomOrderRequest } from '../custom-order/entities/custom-order-request.entity';
 import { AuditLog } from '../audit/entities/audit-log.entity';
+import { Cart } from '../cart/entities/cart.entity';
+import { CartItem } from '../cart/entities/cart-item.entity';
 
 const entities = [
   Business,
@@ -27,6 +29,8 @@ const entities = [
   DiscountCodeUsage,
   CustomOrderRequest,
   AuditLog,
+  Cart,
+  CartItem,
 ];
 
 interface Endpoint {

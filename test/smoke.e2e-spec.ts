@@ -446,6 +446,46 @@ describe('Smoke / integration (e2e)', () => {
     });
   });
 
+  describe('Cart', () => {
+    it('adds to cart, reads it, checks out, and empties', async () => {
+      // Add the product to the cart.
+      const added = await request(http)
+        .post('/cart/items')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({ productId, quantity: 1 })
+        .expect(201);
+      expect(added.body.itemCount).toBe(1);
+      expect(added.body.businessId).toBeDefined();
+      expect(Number(added.body.subtotal)).toBeGreaterThan(0);
+
+      // Read it back.
+      const cart = await request(http)
+        .get('/cart')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .expect(200);
+      expect(cart.body.items).toHaveLength(1);
+
+      // Checkout the cart -> creates an order.
+      const order = await request(http)
+        .post('/cart/checkout')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({ deliveryAddress: '123 Main St' })
+        .expect(201);
+      expect(order.body.id).toBeDefined();
+
+      // Cart is now empty.
+      const empty = await request(http)
+        .get('/cart')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .expect(200);
+      expect(empty.body.itemCount).toBe(0);
+    });
+
+    it('rejects the cart without auth', async () => {
+      await request(http).get('/cart').expect(401);
+    });
+  });
+
   describe('Security regression guards', () => {
     it('never returns the password hash on the profile', async () => {
       const res = await request(http)
