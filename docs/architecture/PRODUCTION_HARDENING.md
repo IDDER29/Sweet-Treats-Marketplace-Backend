@@ -42,8 +42,17 @@ each shipped with tests + a prod-chain migration check where schema changes.
   `@SkipThrottle(SKIP_ALL_THROTTLERS)`, derived from the tier list so it can't
   drift. (This is why high-frequency Stripe callbacks could have hit the limit.)
 
+## PH-6 — Graceful shutdown (zero-downtime deploys)
+- `main.ts` now calls `app.enableShutdownHooks()` (the worker already did). On
+  SIGTERM/SIGINT — what orchestrators send during a rolling deploy — Nest stops
+  accepting connections, drains in-flight requests, then runs the shutdown hooks
+  (close Redis, drain the DB pool + BullMQ) so nothing is dropped or leaked.
+  Verified: SIGTERM → clean exit in ~1s, no force-kill.
+- Listen port is env-configurable (`PORT`, default 3000) for containerised
+  deploys; existing dev/Docker/compose setups are unaffected.
+
 ## Verification gate
 `npm run build` · `npm test` · `npm run test:e2e` · check-only lint on changed
 files · migration applies in the prod chain. Update checkboxes here.
 
-Status: ✅ PH-1 ✅ PH-2 ✅ PH-3 ✅ PH-4 ✅ PH-5
+Status: ✅ PH-1 ✅ PH-2 ✅ PH-3 ✅ PH-4 ✅ PH-5 ✅ PH-6

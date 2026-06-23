@@ -65,6 +65,14 @@ async function bootstrap() {
     );
   }
 
-  await app.listen(3000);
+  // Graceful shutdown: on SIGTERM/SIGINT (rolling deploys, orchestrator stop)
+  // Nest stops accepting connections, lets in-flight requests finish, then runs
+  // shutdown hooks (close Redis, drain the DB pool and BullMQ) so nothing is
+  // dropped mid-flight. The worker process already does this; the API must too.
+  app.enableShutdownHooks();
+
+  // Port is env-configurable for container/orchestrator deploys; defaults to
+  // 3000 so existing dev/Docker/compose setups are unaffected.
+  await app.listen(parseInt(process.env.PORT, 10) || 3000);
 }
 bootstrap();
