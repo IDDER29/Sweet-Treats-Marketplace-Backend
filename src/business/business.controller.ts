@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { UseGuards, Patch, Request } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle } from '@nestjs/throttler';
 import { BusinessService } from './business.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { LoginBusinessDto } from './dto/login-business.dto';
@@ -59,6 +60,10 @@ export class BusinessController {
     }
   }
 
+  @Throttle({
+    short: { limit: 5, ttl: 60000 },
+    medium: { limit: 20, ttl: 3600000 },
+  })
   @Post('login')
   async login(@Body() loginBusinessDto: LoginBusinessDto) {
     try {

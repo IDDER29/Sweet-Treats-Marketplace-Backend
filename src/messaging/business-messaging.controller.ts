@@ -8,6 +8,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle } from '@nestjs/throttler';
 import { MessagingService } from './messaging.service';
 import { SendMessageDto } from './dto/send-message.dto';
 
@@ -30,6 +31,7 @@ export class BusinessMessagingController {
     });
   }
 
+  @Throttle({ short: { limit: 20, ttl: 60000 } })
   @Post(':id/messages')
   reply(@Request() req, @Param('id') id: string, @Body() dto: SendMessageDto) {
     return this.messaging.sendFromBusiness(req.user.businessId, id, dto.body);

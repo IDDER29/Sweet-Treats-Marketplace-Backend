@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { Logger as PinoLogger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { initSentry } from './observability/sentry';
+import { assertProductionConfig } from './common/config-validation';
 
 /**
  * Dedicated worker process: boots the application context WITHOUT an HTTP
@@ -13,6 +14,7 @@ import { initSentry } from './observability/sentry';
  *   node dist/worker.js
  */
 async function bootstrapWorker() {
+  assertProductionConfig();
   initSentry();
   const app = await NestFactory.createApplicationContext(AppModule, {
     bufferLogs: true,

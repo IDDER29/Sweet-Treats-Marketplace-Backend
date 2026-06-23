@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle } from '@nestjs/throttler';
 import { DriverService } from './driver.service';
 import { OrderService } from '../order/order.service';
 import { CreateDriverDto } from './dto/create-driver.dto';
@@ -22,11 +23,19 @@ export class DriverController {
     private readonly orderService: OrderService,
   ) {}
 
+  @Throttle({
+    short: { limit: 3, ttl: 60000 },
+    medium: { limit: 10, ttl: 3600000 },
+  })
   @Post('register')
   register(@Body() dto: CreateDriverDto) {
     return this.driverService.register(dto);
   }
 
+  @Throttle({
+    short: { limit: 5, ttl: 60000 },
+    medium: { limit: 20, ttl: 3600000 },
+  })
   @Post('login')
   login(@Body() dto: LoginDriverDto) {
     return this.driverService.login(dto.email, dto.password);

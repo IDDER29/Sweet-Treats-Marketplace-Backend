@@ -4,9 +4,14 @@ import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { setupSwagger } from './common/swagger';
 import { initSentry } from './observability/sentry';
+import { assertProductionConfig } from './common/config-validation';
 import helmet from 'helmet';
 
 async function bootstrap() {
+  // Fail fast on an insecure/incomplete production config (default JWT secret,
+  // missing DB credentials, …) before doing any work.
+  assertProductionConfig();
+
   // Initialise error tracking before anything else (no-op without SENTRY_DSN).
   initSentry();
 
@@ -53,14 +58,8 @@ async function bootstrap() {
   // Publish the OpenAPI contract at /api/docs (+ /api/docs-json).
   setupSwagger(app);
 
-  if (!process.env.JWT_SECRET) {
-    // In production, refuse to boot with the well-known fallback secret — it
-    // would let anyone forge admin tokens. In dev, warn but allow it.
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(
-        'JWT_SECRET must be set in production. Refusing to start with the insecure fallback secret.',
-      );
-    }
+  // Production misconfig is already blocked above; in dev just nudge.
+  if (!process.env.JWT_SECRET && process.env.NODE_ENV !== 'production') {
     console.warn(
       'WARNING: JWT_SECRET is not set. Using insecure fallback "mySecretKey". Set JWT_SECRET in production!',
     );

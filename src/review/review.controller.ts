@@ -8,6 +8,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle } from '@nestjs/throttler';
 import { ReviewService } from './review.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { ReplyReviewDto } from './dto/reply-review.dto';
@@ -21,6 +22,7 @@ export class ReviewController {
     return this.reviewService.findForProduct(productId);
   }
 
+  @Throttle({ short: { limit: 5, ttl: 60000 } })
   @UseGuards(AuthGuard('jwt'))
   @Post()
   create(
