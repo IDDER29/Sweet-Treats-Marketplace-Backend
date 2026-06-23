@@ -17,7 +17,10 @@ import { OrderItem } from './order-item.entity';
 export enum OrderStatus {
   PENDING = 'PENDING',
   PAID = 'PAID',
-  SHIPPED = 'SHIPPED',
+  PREPARING = 'PREPARING',
+  READY = 'READY',
+  OUT_FOR_DELIVERY = 'OUT_FOR_DELIVERY',
+  SHIPPED = 'SHIPPED', // legacy alias kept for back-compat
   DELIVERED = 'DELIVERED',
   CANCELLED = 'CANCELLED',
 }

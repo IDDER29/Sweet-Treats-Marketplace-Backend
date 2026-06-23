@@ -12,6 +12,7 @@ import { DeliverySlot } from '../delivery/entities/delivery-slot.entity';
 import { DiscountCode } from '../discount/entities/discount-code.entity';
 import { Address } from '../address/entities/address.entity';
 import { MailModule } from '../mail/mail.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { MailModule } from '../mail/mail.module';
     ]),
     PassportModule,
     MailModule,
+    NotificationModule,
   ],
   providers: [OrderService],
   controllers: [OrderController],

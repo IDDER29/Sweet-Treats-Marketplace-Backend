@@ -15,6 +15,7 @@ import { AuditLog } from '../audit/entities/audit-log.entity';
 import { Cart } from '../cart/entities/cart.entity';
 import { CartItem } from '../cart/entities/cart-item.entity';
 import { Address } from '../address/entities/address.entity';
+import { Notification } from '../notification/entities/notification.entity';
 
 const entities = [
   Business,
@@ -33,6 +34,7 @@ const entities = [
   Cart,
   CartItem,
   Address,
+  Notification,
 ];
 
 interface Endpoint {

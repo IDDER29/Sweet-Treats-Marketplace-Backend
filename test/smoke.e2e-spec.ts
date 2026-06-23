@@ -529,6 +529,54 @@ describe('Smoke / integration (e2e)', () => {
     });
   });
 
+  describe('Notifications', () => {
+    const auth = () => ({ Authorization: `Bearer ${customerToken}` });
+
+    it('records an in-app notification when an order is placed', async () => {
+      await request(http)
+        .post('/orders')
+        .set(auth())
+        .send({ items: [{ productId, quantity: 1 }], deliveryAddress: '1 St' })
+        .expect(201);
+
+      // record() is best-effort + fire-and-forget, so poll the feed briefly.
+      let total = 0;
+      for (let i = 0; i < 20; i++) {
+        const res = await request(http)
+          .get('/notifications')
+          .set(auth())
+          .expect(200);
+        total = res.body.total;
+        if (total >= 1) break;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      expect(total).toBeGreaterThanOrEqual(1);
+    });
+
+    it('reports an unread count and marks all read', async () => {
+      const before = await request(http)
+        .get('/notifications/unread-count')
+        .set(auth())
+        .expect(200);
+      expect(before.body.count).toBeGreaterThanOrEqual(1);
+
+      await request(http)
+        .post('/notifications/read-all')
+        .set(auth())
+        .expect(201);
+
+      const after = await request(http)
+        .get('/notifications/unread-count')
+        .set(auth())
+        .expect(200);
+      expect(after.body.count).toBe(0);
+    });
+
+    it('requires auth', async () => {
+      await request(http).get('/notifications').expect(401);
+    });
+  });
+
   describe('Seller storefront', () => {
     let shopSlug: string;
 

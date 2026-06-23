@@ -21,6 +21,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { MailQueueService } from '../mail/mail-queue.service';
 import { assertOwnership } from '../common/authorization/ownership.util';
 import { MetricsService } from '../observability/metrics.service';
+import { NotificationService } from '../notification/notification.service';
 
 const ORDER_RELATIONS = ['items', 'items.product', 'business', 'customer'];
 
@@ -42,6 +43,7 @@ export class OrderService {
     private readonly dataSource: DataSource,
     private readonly mailQueue: MailQueueService,
     private readonly metrics: MetricsService,
+    private readonly notifications: NotificationService,
   ) {}
 
   // Resolve a saved address id into a snapshot string + phone, fail-closed if it
@@ -333,6 +335,14 @@ export class OrderService {
       // Business KPI: orders + GMV (Prometheus).
       this.metrics.recordOrderCreated(Number(full.totalAmount));
 
+      // In-app notification (best-effort).
+      void this.notifications.record(customerId, {
+        type: 'ORDER_PLACED',
+        title: 'Order placed',
+        body: `Your order with ${business.businessName} is confirmed.`,
+        data: { orderId: full.id, status: full.status },
+      });
+
       return this.toResponse(full);
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -464,7 +474,19 @@ export class OrderService {
     // webhook in PaymentService, so sellers only drive post-payment flow.
     const validTransitions: Record<OrderStatus, OrderStatus[]> = {
       [OrderStatus.PENDING]: [OrderStatus.CANCELLED],
-      [OrderStatus.PAID]: [OrderStatus.SHIPPED, OrderStatus.CANCELLED],
+      [OrderStatus.PAID]: [
+        OrderStatus.PREPARING,
+        OrderStatus.SHIPPED,
+        OrderStatus.CANCELLED,
+      ],
+      [OrderStatus.PREPARING]: [OrderStatus.READY, OrderStatus.CANCELLED],
+      // READY can go out for delivery, or be marked delivered directly (pickup).
+      [OrderStatus.READY]: [
+        OrderStatus.OUT_FOR_DELIVERY,
+        OrderStatus.DELIVERED,
+        OrderStatus.CANCELLED,
+      ],
+      [OrderStatus.OUT_FOR_DELIVERY]: [OrderStatus.DELIVERED],
       [OrderStatus.SHIPPED]: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
       // Terminal states — no further transitions.
       [OrderStatus.DELIVERED]: [],
@@ -488,6 +510,16 @@ export class OrderService {
         order.customer.email,
         customerName,
       );
+    }
+
+    // In-app notification for the customer (best-effort).
+    if (order.customer?.user_id) {
+      void this.notifications.record(order.customer.user_id, {
+        type: 'ORDER_STATUS',
+        title: `Order ${status.toLowerCase().replace(/_/g, ' ')}`,
+        body: `Your order is now ${status.replace(/_/g, ' ').toLowerCase()}.`,
+        data: { orderId: order.id, status },
+      });
     }
 
     return this.toResponse(saved);
