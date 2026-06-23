@@ -71,6 +71,16 @@ export class CustomOrderController {
   }
 
   /**
+   * POST /custom-orders/my/:id/deposit-intent
+   * Customer pays the deposit on an accepted quote (Stripe PaymentIntent).
+   */
+  @UseGuards(AuthGuard('jwt'))
+  @Post('my/:id/deposit-intent')
+  createDepositIntent(@Request() req, @Param('id') id: string) {
+    return this.customOrderService.createDepositIntent(req.user.userId, id);
+  }
+
+  /**
    * PATCH /custom-orders/my/:id/cancel
    * Customer cancels a pending or quoted request.
    */

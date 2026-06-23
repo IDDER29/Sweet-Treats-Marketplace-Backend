@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import Stripe from 'stripe';
 import {
   CustomOrderRequest,
   CustomOrderStatus,
@@ -20,6 +21,8 @@ import { UpdateCustomOrderStatusDto } from './dto/update-custom-order-status.dto
 
 @Injectable()
 export class CustomOrderService {
+  private readonly stripe: Stripe;
+
   constructor(
     @InjectRepository(CustomOrderRequest)
     private readonly customOrderRepository: Repository<CustomOrderRequest>,
@@ -27,7 +30,49 @@ export class CustomOrderService {
     private readonly usersRepository: Repository<Users>,
     @InjectRepository(Business)
     private readonly businessRepository: Repository<Business>,
-  ) {}
+  ) {
+    this.stripe = new Stripe(
+      process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder',
+      { apiVersion: '2026-05-27.dahlia' },
+    );
+  }
+
+  // Once the customer has ACCEPTED a quote, create a Stripe PaymentIntent for the
+  // deposit. The webhook flips the request to DEPOSIT_PAID on success (handled in
+  // PaymentService alongside order payments). Requires a live Stripe key.
+  async createDepositIntent(customerId: string, id: string) {
+    const request = await this.customOrderRepository.findOne({
+      where: { id },
+      relations: ['customer', 'business'],
+    });
+    if (!request) throw new NotFoundException('Custom order request not found');
+    assertOwnership(
+      request,
+      'customer.user_id',
+      customerId,
+      'custom order request',
+    );
+    if (request.status !== CustomOrderStatus.ACCEPTED) {
+      throw new BadRequestException(
+        'A deposit can only be paid after the quote is accepted',
+      );
+    }
+    const amount = Math.round(Number(request.depositAmount) * 100);
+    if (!amount || amount <= 0) {
+      throw new BadRequestException('No deposit is due for this request');
+    }
+    const intent = await this.stripe.paymentIntents.create({
+      amount,
+      currency: request.currency || 'gbp',
+      metadata: { customOrderId: request.id, kind: 'custom_order_deposit' },
+      description: `Deposit for custom order ${request.id}`,
+    });
+    return {
+      clientSecret: intent.client_secret,
+      amount,
+      currency: request.currency || 'gbp',
+    };
+  }
 
   async create(
     customerId: string,
